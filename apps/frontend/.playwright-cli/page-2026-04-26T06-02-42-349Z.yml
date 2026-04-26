@@ -1,0 +1,35 @@
+- generic [ref=e4]:
+  - generic [ref=e5]:
+    - generic [ref=e6] [cursor=pointer]:
+      - img [ref=e8]
+      - generic [ref=e10]:
+        - generic [ref=e11]: SwartTube
+        - generic [ref=e12]: Домашний медиасервер
+    - heading "Личная медиатека с доступом по запросу" [level=1] [ref=e13]
+    - paragraph [ref=e14]: Вход в единый интерфейс для каталога, очереди загрузки, библиотеки и воспроизведения через Jellyfin.
+    - generic [ref=e15]:
+      - generic [ref=e16]:
+        - generic [ref=e17]: Каталог
+        - generic [ref=e18]: Поиск фильмов и сериалов из единого API.
+      - generic [ref=e19]:
+        - generic [ref=e20]: Доступ
+        - generic [ref=e21]: Пользователь видит только своё и явно публичное.
+      - generic [ref=e22]:
+        - generic [ref=e23]: Торренты
+        - generic [ref=e24]: Собственный поиск и отправка в qBittorrent.
+      - generic [ref=e25]:
+        - generic [ref=e26]: Просмотр
+        - generic [ref=e27]: Запуск плеера через сессию воспроизведения.
+  - generic [ref=e28]:
+    - generic [ref=e29]:
+      - button "Вход" [ref=e30] [cursor=pointer]
+      - button "Регистрация" [ref=e31] [cursor=pointer]
+    - generic [ref=e32]:
+      - generic [ref=e33]:
+        - generic [ref=e34]: Имя пользователя
+        - textbox "Имя пользователя" [ref=e35]
+      - generic [ref=e36]:
+        - generic [ref=e37]: Пароль
+        - textbox "Пароль" [ref=e38]
+      - button "Войти" [ref=e39] [cursor=pointer]:
+        - generic [ref=e40]: Войти

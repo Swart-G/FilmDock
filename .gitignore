@@ -1,0 +1,27 @@
+node_modules/
+dist/
+.venv/
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+*.pyc
+*.pyo
+*.pyd
+.DS_Store
+data/
+
+# Python
+.venv*/
+__pycache__/
+*.pyc
+
+# Env
+.env
+
+# App data / downloads
+downloads/
+jellyfin/
+qbittorrent/
+
+# Local Codex
+.codex/

@@ -1,0 +1,87 @@
+services:
+  nginx:
+    image: nginx:1.27-alpine
+    depends_on:
+      - frontend
+      - api
+    ports:
+      - "8080:80"
+    volumes:
+      - ./infra/nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+
+  frontend:
+    build:
+      context: .
+      dockerfile: apps/frontend/Dockerfile
+    env_file:
+      - .env
+    environment:
+      VITE_API_BASE: /api
+    expose:
+      - "4173"
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    env_file:
+      - .env
+    environment:
+      SWARTTUBE_ENV: docker
+      SWARTTUBE_DB_PATH: /data/swarttube.db
+    volumes:
+      - ./data:/data
+      - ./media:/media:ro
+      - ./downloads:/downloads
+    expose:
+      - "8000"
+
+  worker:
+    build:
+      context: .
+      dockerfile: apps/worker/Dockerfile
+    env_file:
+      - .env
+    environment:
+      SWARTTUBE_API_BASE: http://api:8000
+    volumes:
+      - ./data:/data
+      - ./media:/media
+      - ./downloads:/downloads
+    expose:
+      - "8001"
+
+  jellyfin:
+    image: jellyfin/jellyfin:10.10.7
+    environment:
+      JELLYFIN_PublishedServerUrl: http://localhost:8080/jellyfin
+      JELLYFIN_BaseUrl: /jellyfin
+    ports:
+      - "8096:8096"
+    volumes:
+      - ./jellyfin/config:/config
+      - ./jellyfin/cache:/cache
+      - ./media:/media
+      - ./downloads:/downloads
+    restart: unless-stopped
+
+  qbittorrent:
+    image: lscr.io/linuxserver/qbittorrent:5.1.2
+    env_file:
+      - .env
+    environment:
+      PUID: "1000"
+      PGID: "1000"
+      TZ: Europe/Moscow
+      WEBUI_PORT: "8080"
+      SWARTTUBE_QBITTORRENT_ADMIN_USERNAME: ${SWARTTUBE_QBITTORRENT_ADMIN_USERNAME}
+      SWARTTUBE_QBITTORRENT_ADMIN_PASSWORD: ${SWARTTUBE_QBITTORRENT_ADMIN_PASSWORD}
+    ports:
+      - "8081:8080"
+      - "6881:6881"
+      - "6881:6881/udp"
+    volumes:
+      - ./qbittorrent/config:/config
+      - ./qbittorrent/custom-cont-init.d:/custom-cont-init.d:ro
+      - ./downloads:/downloads
+    restart: unless-stopped

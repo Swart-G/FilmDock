@@ -1,0 +1,68 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e6]:
+      - button "SwartTube Домашний медиасервер" [ref=e7] [cursor=pointer]:
+        - img [ref=e9]
+        - generic [ref=e11]:
+          - generic [ref=e12]: SwartTube
+          - generic [ref=e13]: Домашний медиасервер
+      - navigation [ref=e14]:
+        - button "Библиотека" [ref=e15] [cursor=pointer]:
+          - img [ref=e16]
+          - generic [ref=e18]: Библиотека
+        - button "Найти" [active] [ref=e19] [cursor=pointer]:
+          - img [ref=e20]
+          - generic [ref=e23]: Найти
+      - button "preview" [ref=e24] [cursor=pointer]:
+        - img [ref=e25]
+        - generic [ref=e28]: preview
+  - main [ref=e30]:
+    - generic [ref=e31]:
+      - generic [ref=e68]: "Request failed: 500"
+      - generic [ref=e69]:
+        - generic [ref=e70]:
+          - generic [ref=e71]: TORRENT PIPELINE
+          - heading "Найдите релиз, выберите вручную и отправьте в очередь загрузки." [level=1] [ref=e72]
+          - paragraph [ref=e73]: "Главный поток: поиск по провайдерам, добавление торрента, контроль прогресса на главной странице и переход в Jellyfin после готовности."
+        - generic [ref=e74]:
+          - generic [ref=e75]:
+            - generic [ref=e76]:
+              - img [ref=e77]
+              - textbox [ref=e80]:
+                - /placeholder: Название релиза, фильма или сериала
+            - button "Искать" [ref=e81] [cursor=pointer]
+          - generic [ref=e82]:
+            - generic [ref=e83]:
+              - img [ref=e84]
+              - textbox [ref=e87]:
+                - /placeholder: magnet:?xt=urn:btih:...
+            - button "Добавить по magnet" [ref=e88] [cursor=pointer]
+          - generic [ref=e89]:
+            - generic [ref=e90]:
+              - button "Тип авто" [ref=e92] [cursor=pointer]:
+                - generic [ref=e93]: Тип
+                - generic [ref=e94]: авто
+                - img [ref=e95]
+              - button "Разрешение все" [ref=e98] [cursor=pointer]:
+                - generic [ref=e99]: Разрешение
+                - generic [ref=e100]: все
+                - img [ref=e101]
+              - button "Озвучка все" [ref=e104] [cursor=pointer]:
+                - generic [ref=e105]: Озвучка
+                - generic [ref=e106]: все
+                - img [ref=e107]
+              - button "Субтитры все" [ref=e110] [cursor=pointer]:
+                - generic [ref=e111]: Субтитры
+                - generic [ref=e112]: все
+                - img [ref=e113]
+            - button "По релевантности" [ref=e116] [cursor=pointer]:
+              - img [ref=e117]
+              - generic [ref=e119]: По релевантности
+              - img [ref=e120]
+        - generic [ref=e122]:
+          - generic [ref=e123]:
+            - generic [ref=e124]:
+              - generic [ref=e125]: Выдача
+              - heading "Поиск ждёт запрос" [level=2] [ref=e126]
+            - generic [ref=e127]: "0"
+          - generic [ref=e128]: Введите минимум 2 символа и нажмите «Искать».

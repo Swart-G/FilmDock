@@ -1,0 +1,47 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e6]:
+      - button "SwartTube Домашний медиасервер" [ref=e7] [cursor=pointer]:
+        - img [ref=e9]
+        - generic [ref=e11]:
+          - generic [ref=e12]: SwartTube
+          - generic [ref=e13]: Домашний медиасервер
+      - navigation [ref=e14]:
+        - button "Библиотека" [ref=e15] [cursor=pointer]:
+          - img [ref=e16]
+          - generic [ref=e18]: Библиотека
+        - button "Найти" [ref=e19] [cursor=pointer]:
+          - img [ref=e20]
+          - generic [ref=e23]: Найти
+      - button "preview" [ref=e24] [cursor=pointer]:
+        - img [ref=e25]
+        - generic [ref=e28]: preview
+  - main [ref=e30]:
+    - generic [ref=e33]:
+      - generic [ref=e35]:
+        - generic [ref=e36]:
+          - generic [ref=e37]:
+            - img [ref=e38]
+            - text: Очередь загрузки
+          - generic [ref=e40]: "0"
+        - generic [ref=e41]:
+          - generic [ref=e42]: Загружаем библиотеку...
+          - generic [ref=e44]: Сейчас нет активных задач.
+      - generic [ref=e45]:
+        - generic [ref=e46]:
+          - generic [ref=e47]:
+            - generic [ref=e48]: Завершенные загрузки
+            - generic [ref=e49]: "0"
+          - generic [ref=e52]: Завершённых торрент-задач пока нет.
+        - generic [ref=e53]:
+          - generic [ref=e54]:
+            - generic [ref=e55]: Проблемные загрузки
+            - generic [ref=e56]: "0"
+          - generic [ref=e59]: Ошибок синхронизации или статусов нет.
+        - generic [ref=e60]:
+          - generic [ref=e61]:
+            - generic [ref=e62]: Публичные торренты
+            - generic [ref=e63]: "0"
+          - generic [ref=e64]:
+            - paragraph [ref=e65]: Если владелец сделал торрент публичным, он появится в этом списке.
+            - generic [ref=e67]: Публичных торрентов пока нет.
