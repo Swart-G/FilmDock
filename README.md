@@ -57,7 +57,7 @@ Bundled service ports in this compose:
 - `8080`: FilmDock nginx
 - `8080/jellyfin`: Jellyfin via nginx
 - `8080/qbittorrent`: qBittorrent via nginx
-- `8081`: qBittorrent direct Web UI
+- `18081`: qBittorrent direct Web UI
 - `8096`: Jellyfin direct port
 - `6881/tcp,udp`: qBittorrent torrent port
 

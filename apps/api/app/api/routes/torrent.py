@@ -14,6 +14,19 @@ search_service = TorrentSearchService()
 identity_service = TorrentIdentityService()
 pipeline_service = TorrentPipelineService()
 
+ANIME_PROVIDERS = {"animetosho", "nyaa.si", "anidex", "subsplease"}
+
+
+def _media_type_from_payload(payload: AddTorrentIn, media_type: str | None) -> str | None:
+    if media_type in {"movie", "series"}:
+        return media_type
+
+    provider = (payload.provider or "").strip().lower()
+    tags = {tag.strip().lower() for tag in payload.tags}
+    if provider in ANIME_PROVIDERS or "anime" in tags:
+        return "series"
+    return media_type
+
 
 @router.get("/search", response_model=TorrentSearchResponseOut)
 def search(
@@ -60,6 +73,7 @@ def add_torrent(payload: AddTorrentIn, user=Depends(require_user)) -> AddTorrent
 
     media = get_media_detail(payload.media_item_id) if payload.media_item_id else None
     media_type = str(media["type"]) if media is not None else payload.media_type
+    media_type = _media_type_from_payload(payload, media_type)
     media_title = str(media["title"]) if media is not None else payload.media_title
     if media_title is None:
         media_title = identity_service.extract_display_name_from_magnet(payload.magnet_url) or "Magnet torrent"

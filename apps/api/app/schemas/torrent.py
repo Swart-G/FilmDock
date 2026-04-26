@@ -35,6 +35,8 @@ class AddTorrentIn(BaseModel):
     info_hash: str | None = None
     magnet_url: str | None = None
     download_url: str | None = None
+    provider: str | None = None
+    tags: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def validate_source(self) -> "AddTorrentIn":

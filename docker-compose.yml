@@ -4,6 +4,7 @@ services:
     depends_on:
       - frontend
       - api
+      - qbittorrent
     ports:
       - "8080:80"
     volumes:
@@ -73,15 +74,15 @@ services:
       PUID: "1000"
       PGID: "1000"
       TZ: Europe/Moscow
-      WEBUI_PORT: "8080"
-      SWARTTUBE_QBITTORRENT_ADMIN_USERNAME: ${SWARTTUBE_QBITTORRENT_ADMIN_USERNAME}
-      SWARTTUBE_QBITTORRENT_ADMIN_PASSWORD: ${SWARTTUBE_QBITTORRENT_ADMIN_PASSWORD}
+      WEBUI_PORT: ${SWARTTUBE_QBITTORRENT_WEBUI_PORT:-18081}
+      SWARTTUBE_QBITTORRENT_ADMIN_USERNAME: ${SWARTTUBE_QBITTORRENT_ADMIN_USERNAME:?set in .env}
+      SWARTTUBE_QBITTORRENT_ADMIN_PASSWORD: ${SWARTTUBE_QBITTORRENT_ADMIN_PASSWORD:?set in .env}
     ports:
-      - "8081:8080"
+      - "${SWARTTUBE_QBITTORRENT_WEBUI_PORT:-18081}:${SWARTTUBE_QBITTORRENT_WEBUI_PORT:-18081}"
       - "6881:6881"
       - "6881:6881/udp"
     volumes:
       - ./qbittorrent/config:/config
-      - ./qbittorrent/custom-cont-init.d:/custom-cont-init.d:ro
+      - ./scripts/qbit-init.sh:/custom-cont-init.d/10-filmdock-webui-credentials:ro
       - ./downloads:/downloads
     restart: unless-stopped

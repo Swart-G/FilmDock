@@ -561,6 +561,8 @@ export default function App() {
           info_hash: item.info_hash,
           magnet_url: magnetUrl,
           download_url: item.download_url ?? null,
+          provider: item.provider,
+          tags: item.tags,
         }),
       });
       setAddState((state) => ({ ...state, [item.info_hash]: "done" }));
