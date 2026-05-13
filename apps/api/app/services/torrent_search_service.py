@@ -8,11 +8,15 @@ import time
 
 from app.core.config import settings
 from app.schemas.torrent import TorrentResultOut
+from app.services.providers.anilibria import AnilibriaProvider
 from app.services.providers.animetosho import AnimeToshoProvider
 from app.services.providers.apibay import ApiBayProvider
+from app.services.providers.kinozal import KinozalProvider
+from app.services.providers.nnmclub import NnmClubProvider
 from app.services.providers.nyaa import NyaaProvider
 from app.services.providers.rutor import RutorProvider
 from app.services.providers.rutracker import RutrackerProvider
+from app.services.providers.rutracker_ru import RutrackerRuProvider
 from app.services.providers.yts import YtsProvider
 
 QUALITY_RANKS = {
@@ -22,6 +26,72 @@ QUALITY_RANKS = {
     "720p": 2,
     "480p": 1,
 }
+
+# Matches titles that are clearly NOT movies/series (games, software, music, books).
+# Conservative: only high-confidence signals to minimise false positives.
+_NON_VIDEO_RE = re.compile(
+    r"""
+    # ── Game signals ─────────────────────────────────────────────────────────
+
+    # Version numbers in brackets: [v 1.5], [v 4.04a], [v 1.0.2.12] — only games do this
+    \[v\s*\d+[\d._a-z\-]* |
+
+    # GOG (game digital store) — standalone or with version
+    \bGOG\b |
+
+    # Game of the Year Edition — classic game marketing term
+    \bGame\s+of\s+the\s+Year\s+Edition\b |
+
+    # PC game repacks — "PC | RePack", "PC RePack"
+    \bPC\s*[|/,]\s*[Rr]ePack\b |
+
+    # Known game crack distributor names (very specific)
+    \bFitGirl[\s\-]?[Rr]epack\b |
+    \b(?:CODEX|SKIDROW|CPY|EMPRESS|PLAZA|HOODLUM|RAZZLE|RAZORDOX|PROPHET)\s+(?:crack|release)\b |
+
+    # DLC suffix in game titles: "Complete Edition + DLC", "[v 1.0 + DLC]"
+    \+\s*DLC\b |
+
+    # ── Software signals ─────────────────────────────────────────────────────
+    \b(?:keygen|serial[\s\-]?key|activation[\s\-]?key|license[\s\-]?key)\b |
+
+    # ── Books and audiobooks ─────────────────────────────────────────────────
+    \baudiobook\b | \bаудиокниг[аи]?\b |
+    \b(?:e\-?book|epub|fb2|djvu)\b |
+    # "N книг из M", "(N книг" or "[Книга N-M]" — book collection indicators
+    \(\d+\s+книг[а-я]* |
+    \bкниг\s+из\s+\d+ |
+    \[книга\s*\d |
+
+    # ── Music (soundtrack as primary content, not as audio track in a film) ──
+    # "OST - Movie Name" or "/ OST Movie" prefix formats = music torrent
+    \bOST\s*[-—/]\s*(?=[А-ЯA-Z]) |
+    \bOST\s*\w.*(?:FLAC|MP3|Hi[\-\s]?Res)\b |
+    # Pure music releases: FLAC genre release (/ Поп /, / Rock /, / Jazz /)
+    /\s*(?:Поп|Rock|Jazz|Рок|Электроника|Electronic|Hip[\-\s]?Hop|Blues|Country)\s*/ |
+    # Hi-Res music in brackets
+    \[\d+-bit\s+Hi[\-\s]?Res\] |
+    # MP3/FLAC standalone at end: "(2024) MP3" or "(2024) FLAC" — music albums
+    \(\d{4}\)\s+(?:MP3|FLAC|WAV|AAC)\s*(?:\[|$) |
+    # MP3 year-range collection
+    \(\d{4}[\-–]\d{4}\)\s+MP3\b |
+    # FLAC audio release tags: [FLAC|Lossless|tracks] or [FLAC|WEB-DL|tracks]
+    \[(?:FLAC|Lossless)\s*\| |
+    # Various Artists compilation with audio format — clear music signal
+    \bVA\s*[-–].*\b(?:MP3|FLAC|WAV|AAC|Lossless)\b |
+
+    # ── Image/photo collections ───────────────────────────────────────────────
+    \[(?:JPG|JPEG|PNG|RAW|PSD|AI)\] |
+    \bСтоковые\s+изображения\b |
+
+    # ── Music discography ────────────────────────────────────────────────────
+    \bdiscography\b | \bдискографи |
+
+    # ── Game/app file formats in title ───────────────────────────────────────
+    \.(?:exe|msi|apk|ipa)\b
+    """,
+    re.VERBOSE | re.IGNORECASE,
+)
 
 WORD_RE = re.compile(r"[a-z0-9]+")
 SEARCH_WORD_RE = re.compile(r"[a-zа-яё0-9]+", re.IGNORECASE)
@@ -71,13 +141,20 @@ class TorrentSearchService:
     def __init__(self) -> None:
         self.primary_provider = ApiBayProvider()
         self.secondary_providers: list[SearchProvider] = [
-            YtsProvider(),
-            AnimeToshoProvider(),
+            RutrackerRuProvider(),
+            KinozalProvider(),
             RutrackerProvider(),
             RutorProvider(),
+            NnmClubProvider(),
+            AnilibriaProvider(),
+            YtsProvider(),
+            AnimeToshoProvider(),
             NyaaProvider(),
         ]
         self.providers: list[SearchProvider] = [self.primary_provider, *self.secondary_providers]
+
+    # Max results contributed by the TPB/ApiBay provider — keeps room for Russian trackers.
+    _PRIMARY_CAP = 80
 
     def search(
         self,
@@ -97,33 +174,33 @@ class TorrentSearchService:
         if not cleaned_query:
             return []
 
-        deadline = time.monotonic() + max(float(settings.torrent_search_timeout_seconds), 1.0)
+        timeout = max(float(settings.torrent_search_timeout_seconds), 1.0)
         max_results = max(int(settings.torrent_search_max_results), 1)
-        min_results = max(int(settings.torrent_search_min_results), 1)
-        target_results = max(min(int(settings.torrent_search_target_results), max_results), min_results)
-
-        collected: list[TorrentResultOut] = []
-        seen_hashes: set[str] = set()
 
         queries = [cleaned_query]
         if settings.torrent_search_query_expansion_enabled:
             queries.extend(self._query_variants(cleaned_query))
 
-        primary_results = self._search_primary_variants(queries[:8], deadline)
-        self._extend_unique(collected, seen_hashes, primary_results, limit=max_results)
+        # Run ApiBay (primary) and all Russian/secondary providers fully in parallel.
+        # Primary is capped to _PRIMARY_CAP so it doesn't crowd out everything else.
+        primary_raw, secondary_raw = self._search_all_parallel(
+            primary_query=cleaned_query,
+            all_queries=queries[:6],
+            timeout_seconds=timeout,
+        )
 
-        if settings.torrent_search_fallback_enabled and len(collected) < target_results:
-            for search_query in queries:
-                if len(collected) >= target_results or len(collected) >= max_results:
-                    break
-                secondary_results = self._search_secondary_providers(search_query, deadline)
-                self._extend_unique(collected, seen_hashes, secondary_results, limit=max_results)
-                if self._budget_seconds_left(deadline) <= 0:
-                    break
+        # Interleave: secondary (Russian) first, then fill with primary up to cap.
+        collected: list[TorrentResultOut] = []
+        seen: set[str] = set()
+        self._extend_unique(collected, seen, secondary_raw, limit=max_results)
+        self._extend_unique(collected, seen, primary_raw, limit=min(max_results, len(collected) + self._PRIMARY_CAP))
+
+        # Drop obvious non-video content (games, audiobooks, software, etc.)
+        video_only = [item for item in collected if not _NON_VIDEO_RE.search(item.title)]
 
         filtered = [
             item
-            for item in collected
+            for item in video_only
             if self._matches_filters(
                 item,
                 resolution=resolution,
@@ -140,61 +217,57 @@ class TorrentSearchService:
     def _budget_seconds_left(self, deadline: float) -> float:
         return max(0.0, deadline - time.monotonic())
 
-    def _search_primary_variants(self, queries: list[str], deadline: float) -> list[TorrentResultOut]:
-        remaining = self._budget_seconds_left(deadline)
-        if remaining <= 0:
-            return []
+    def _search_all_parallel(
+        self,
+        primary_query: str,
+        all_queries: list[str],
+        timeout_seconds: float,
+    ) -> tuple[list[TorrentResultOut], list[TorrentResultOut]]:
+        """Fire ApiBay (multiple query variants) and all secondary providers simultaneously.
 
-        results: list[TorrentResultOut] = []
-        unique_queries = list(dict.fromkeys(query for query in queries if query.strip()))
+        Returns (primary_results, secondary_results) so the caller can apply different caps.
+        """
+        unique_queries = list(dict.fromkeys(q for q in all_queries if q.strip()))
         if not unique_queries:
-            return results
+            unique_queries = [primary_query]
 
-        timeout_per_query = max(min(remaining, 4.2), 1.4)
-        workers = min(len(unique_queries), 5)
+        # ApiBay tasks: one per query variant
+        primary_tasks = [(self.primary_provider, q) for q in unique_queries]
+        # Secondary tasks: each provider gets the main query only (avoids explosion of requests)
+        secondary_tasks = [(provider, primary_query) for provider in self.secondary_providers]
+
+        all_tasks = primary_tasks + secondary_tasks
+        primary_count = len(primary_tasks)
+
+        provider_timeout = max(timeout_seconds * 0.85, 2.0)
+        workers = min(len(all_tasks), 16)
         pool = ThreadPoolExecutor(max_workers=workers)
-        futures = [pool.submit(self.primary_provider.search, query, timeout_seconds=timeout_per_query) for query in unique_queries]
+        futures = [
+            pool.submit(provider.search, query, timeout_seconds=provider_timeout)
+            for provider, query in all_tasks
+        ]
+        primary_futures = set(futures[:primary_count])
+
+        primary_raw: list[TorrentResultOut] = []
+        secondary_raw: list[TorrentResultOut] = []
         try:
             try:
-                for future in as_completed(futures, timeout=remaining + 0.1):
+                for future in as_completed(futures, timeout=timeout_seconds + 0.5):
                     try:
-                        results.extend(future.result())
+                        items = future.result()
                     except Exception:
                         continue
+                    if future in primary_futures:
+                        primary_raw.extend(items)
+                    else:
+                        secondary_raw.extend(items)
             except TimeoutError:
-                for future in futures:
-                    future.cancel()
+                for f in futures:
+                    f.cancel()
         finally:
             pool.shutdown(wait=False, cancel_futures=True)
-        return results
 
-    def _search_secondary_providers(self, query: str, deadline: float) -> list[TorrentResultOut]:
-        remaining = self._budget_seconds_left(deadline)
-        if remaining <= 0:
-            return []
-
-        providers = self.secondary_providers
-        if not providers:
-            return []
-
-        results: list[TorrentResultOut] = []
-        timeout_per_provider = max(min(remaining, 2.0), 0.5)
-        workers = min(len(providers), 5)
-        pool = ThreadPoolExecutor(max_workers=workers)
-        futures = [pool.submit(provider.search, query, timeout_seconds=timeout_per_provider) for provider in providers]
-        try:
-            try:
-                for future in as_completed(futures, timeout=remaining + 0.1):
-                    try:
-                        results.extend(future.result())
-                    except Exception:
-                        continue
-            except TimeoutError:
-                for future in futures:
-                    future.cancel()
-        finally:
-            pool.shutdown(wait=False, cancel_futures=True)
-        return results
+        return primary_raw, secondary_raw
 
     def _extend_unique(
         self,

@@ -22,6 +22,11 @@ LINK_RE = re.compile(r'href="(?P<link>/(?:torrent|download)/\d+[^"]*)"[^>]*>(?P<
 MAGNET_RE = re.compile(r'href="(?P<link>magnet:\?[^"]+)"', re.IGNORECASE)
 SIZE_RE = re.compile(r"(?P<num>\d+(?:[.,]\d+)?)\s*(?P<unit>TB|GB|MB|KB|B)", re.IGNORECASE)
 SEED_LEECH_RE = re.compile(r"<span[^>]*class=\"green\"[^>]*>(?P<seed>\d+)</span>.*?<span[^>]*class=\"red\"[^>]*>(?P<leech>\d+)</span>", re.IGNORECASE | re.DOTALL)
+# Date format: "02&nbsp;Апр&nbsp;26" or "02 Апр 26"
+DATE_RE = re.compile(r"<td[^>]*>(\d{1,2})(?:&nbsp;|\s+)(Янв|Фев|Мар|Апр|Май|Июн|Июл|Авг|Сен|Окт|Ноя|Дек)(?:&nbsp;|\s+)(\d{2})\s*</td>", re.IGNORECASE)
+
+_RU_MONTHS = {"янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6,
+              "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12}
 
 QUALITY_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     ("2160p", re.compile(r"\b(?:2160p|4k|uhd)\b", re.IGNORECASE)),
@@ -33,8 +38,18 @@ QUALITY_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
 LANGUAGE_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     ("RU", re.compile(r"(?<![\w])(?:ru|rus|russian|рус(?:ский|ская|ские|ск)?)(?![\w])", re.IGNORECASE)),
     ("EN", re.compile(r"(?<![\w])(?:en|eng|english|англ(?:ийский)?)(?![\w])", re.IGNORECASE)),
+    ("UA", re.compile(r"(?<![\w])(?:ua|ukr|укр(?:аинский)?)(?![\w])", re.IGNORECASE)),
     ("JP", re.compile(r"(?<![\w])(?:jp|jpn|japanese|япон(?:ский)?)(?![\w])", re.IGNORECASE)),
 ]
+
+# Russian torrent shortcodes: | D | P | L | A | MVO | DVO | P2 | КПК | etc.
+# D=Дублированный, P=Профессиональный, L=ЛостФилм/Любит., A=Авторский, MVO/DVO=многоголосый
+_RU_SHORTCODE_RE = re.compile(
+    r"[|\s,](?:D2?|P2?|L2?|A|MVO|DVO|КПК|SDI|HDRezka|NewStudio|Пифагор|LostFilm|Generalfilm|Kerob|Scarabey)[|\s,]",
+    re.IGNORECASE,
+)
+_UKR_SHORTCODE_RE = re.compile(r"[|\s,]UKR[|\s,]", re.IGNORECASE)
+
 AUDIO_MARKERS_RE = re.compile(r"(?:озвуч|дубляж|дублир|audio|dub|dvo|mvo|профессионал|лиценз)", re.IGNORECASE)
 SUBTITLE_MARKERS_RE = re.compile(r"(?:subtitles?|subs?|субт|сабы|hardsub|softsub)", re.IGNORECASE)
 NO_SUBTITLE_MARKERS_RE = re.compile(r"(?:без\s+субт|no\s+subs?)", re.IGNORECASE)
@@ -122,6 +137,11 @@ class RutorProvider:
         if not page:
             return []
 
+        # Scope to the search results table only — avoids news/pinned items at top
+        index_start = page.find('id="index"')
+        if index_start != -1:
+            page = page[index_start:]
+
         host = urlparse(mirror).netloc or PROVIDER_NAME
         now_iso = datetime.now(UTC).isoformat().replace("+00:00", "Z")
         parsed: list[TorrentResultOut] = []
@@ -139,6 +159,7 @@ class RutorProvider:
 
             seeders, leechers = self._extract_seed_leech(row)
             size_bytes = self._extract_size_bytes(row)
+            published_at = self._extract_date(row) or now_iso
             resolution = self._extract_resolution(title)
             dub, subtitles = self._extract_languages(title)
             tags = [host]
@@ -158,7 +179,7 @@ class RutorProvider:
                     leechers=leechers,
                     size=self._format_size(size_bytes),
                     size_bytes=size_bytes,
-                    published_at=now_iso,
+                    published_at=published_at,
                     resolution=resolution,
                     dub=dub,
                     subtitles=subtitles,
@@ -211,10 +232,20 @@ class RutorProvider:
 
     def _extract_languages(self, title: str) -> tuple[str | None, str | None]:
         detected = [code for code, pattern in LANGUAGE_PATTERNS if pattern.search(title)]
+
+        # Rutor uses single-letter shortcodes like | D | P | L | for Russian audio
+        padded = f" {title} "
+        # Add RU from shortcodes regardless of what LANGUAGE_PATTERNS already found
+        if _RU_SHORTCODE_RE.search(padded) and "RU" not in detected:
+            detected.insert(0, "RU")
+        if _UKR_SHORTCODE_RE.search(padded) and "UA" not in detected:
+            detected.append("UA")
+
         if not detected:
             return None, None
         deduped = list(dict.fromkeys(detected))
-        dub = ", ".join(deduped[:2]) if AUDIO_MARKERS_RE.search(title) else deduped[0]
+        has_audio = AUDIO_MARKERS_RE.search(title) or _RU_SHORTCODE_RE.search(padded)
+        dub = ", ".join(deduped[:2]) if has_audio else deduped[0]
         if NO_SUBTITLE_MARKERS_RE.search(title):
             subtitles = None
         elif SUBTITLE_MARKERS_RE.search(title):
@@ -222,6 +253,21 @@ class RutorProvider:
         else:
             subtitles = None
         return dub or None, subtitles or None
+
+    def _extract_date(self, row: str) -> str | None:
+        m = DATE_RE.search(row)
+        if not m:
+            return None
+        try:
+            day = int(m.group(1))
+            month = _RU_MONTHS.get(m.group(2).lower())
+            year = 2000 + int(m.group(3))
+            if not month:
+                return None
+            dt = datetime(year, month, day, tzinfo=UTC)
+            return dt.isoformat().replace("+00:00", "Z")
+        except (ValueError, TypeError):
+            return None
 
     def _format_size(self, size_bytes: int | None) -> str:
         if not size_bytes or size_bytes <= 0:

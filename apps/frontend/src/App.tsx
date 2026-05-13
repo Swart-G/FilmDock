@@ -796,13 +796,13 @@ export default function App() {
           <HomePage
             queryInput={queryInput} magnetInput={magnetInput} query={query}
             resolution={resolution} dub={dub} subtitles={subtitles}
-            sortBy={sortBy} sortOrder={sortOrder} targetMediaType={targetMediaType}
+            sortBy={sortBy} sortOrder={sortOrder}
             results={results} loading={searchLoading} error={null} addState={addState}
             onQueryInputChange={setQueryInput} onMagnetInputChange={setMagnetInput}
             onSearch={searchTorrents} onAddByMagnet={addMagnetTorrent}
             onResolutionChange={setResolution} onDubChange={setDub} onSubtitlesChange={setSubtitles}
             onSortChange={(nextSortBy, nextSortOrder) => { setSortBy(nextSortBy); setSortOrder(nextSortOrder); }}
-            onTargetMediaTypeChange={setTargetMediaType} onAdd={addTorrent}
+            onAdd={addTorrent}
           />
         )}
 
@@ -1219,24 +1219,11 @@ function LibraryPage({
   onDeleteTorrent: (infoHash: string) => void;
 }) {
   const [view, setView] = useState<"grid" | "list">("grid");
-  const [filter, setFilter] = useState<"all" | "movies" | "series">("all");
 
   const aggregateSpeed = formatAggregateDownloadSpeed(activeDownloads);
   const watchableCount = completedDownloads.filter(i => i.can_watch).length;
   const publicCount = publicLibraryTorrents.length + completedDownloads.filter(i => i.is_public).length;
-  const totalCount = completedDownloads.length + library.length;
-
-  const filteredCompleted = completedDownloads.filter(item => {
-    if (filter === "movies") return item.media_type === "movie";
-    if (filter === "series") return item.media_type === "series";
-    return true;
-  });
-
-  const FILTER_ITEMS = [
-    { value: "all" as const,     label: "Все" },
-    { value: "movies" as const,  label: "Фильмы" },
-    { value: "series" as const,  label: "Сериалы" },
-  ];
+  const totalCount = completedDownloads.length;
 
   return (
     <>
@@ -1309,15 +1296,6 @@ function LibraryPage({
       {!loading && (
         <>
           <div className="fd-lib-bar">
-            <div className="fd-chips">
-              {FILTER_ITEMS.map(it => (
-                <button key={it.value} type="button"
-                  className={`fd-chip ${filter === it.value ? "is-on" : ""}`}
-                  onClick={() => setFilter(it.value)}>
-                  {it.label}
-                </button>
-              ))}
-            </div>
             <div className="fd-lib-bar-r">
               <div className="fd-view-toggle">
                 <button type="button" className={view === "grid" ? "is-on" : ""} onClick={() => setView("grid")} title="Сетка">
@@ -1335,7 +1313,7 @@ function LibraryPage({
             </div>
           </div>
 
-          {filteredCompleted.length === 0 ? (
+          {completedDownloads.length === 0 ? (
             <div className="fd-empty">
               <div className="fd-empty-icon">
                 <Library size={28} />
@@ -1345,7 +1323,7 @@ function LibraryPage({
             </div>
           ) : view === "grid" ? (
             <div className="fd-info-grid">
-              {filteredCompleted.map((item, i) => (
+              {completedDownloads.map((item, i) => (
                 <CompletedTorrentCard
                   key={item.info_hash} item={item} index={i}
                   onWatch={onOpenTorrentWatch}
@@ -1362,7 +1340,7 @@ function LibraryPage({
                 <span>Добавлено</span>
                 <span>Прогресс</span>
               </div>
-              {filteredCompleted.map((item, i) => (
+              {completedDownloads.map((item, i) => (
                 <CompletedTorrentRow
                   key={item.info_hash} item={item} index={i}
                   onWatch={onOpenTorrentWatch}

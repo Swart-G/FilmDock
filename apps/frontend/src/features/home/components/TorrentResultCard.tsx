@@ -16,6 +16,24 @@ function hashHue(str: string): number {
   return Math.abs(h) % 360;
 }
 
+const PROVIDER_LABELS: Record<string, string> = {
+  "apibay.org": "TPB",
+  "rutracker.org": "RuTracker",
+  "rutracker.ru": "RuTracker.RU",
+  "rutor.info": "RuTor",
+  "rutor.is": "RuTor",
+  "kinozal.me": "Kinozal",
+  "kinozal.tv": "Kinozal",
+  "nnmclub.to": "NNM-Club",
+  "nyaa.si": "Nyaa",
+  "yts.lt": "YTS",
+  "animetosho": "AnimeTosho",
+};
+
+function providerLabel(provider: string): string {
+  return PROVIDER_LABELS[provider.toLowerCase()] ?? provider;
+}
+
 function SeedersBar({ seeders, leechers }: { seeders: number; leechers: number }) {
   const tone = seeders > 500 ? "high" : seeders > 50 ? "mid" : "low";
   return (
@@ -46,7 +64,17 @@ export function TorrentResultCard({ item, index = 0, addState, onAdd }: TorrentR
   const isError = addState === "error";
 
   const pubDate = new Date(item.published_at);
-  const dateStr = pubDate.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "2-digit" });
+  const isValidDate = !Number.isNaN(pubDate.getTime()) && pubDate.getFullYear() > 2000;
+  const dateStr = isValidDate
+    ? pubDate.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "2-digit" })
+    : null;
+
+  // Show relevant badges — skip provider tags since we show it in header
+  const extraTags = item.tags?.filter(t =>
+    t !== item.provider &&
+    !/^(RU|EN|JP|UA|DE|FR|ES)$/i.test(t) &&
+    !t.endsWith(" subs")
+  ).slice(0, 2) ?? [];
 
   return (
     <article
@@ -59,9 +87,8 @@ export function TorrentResultCard({ item, index = 0, addState, onAdd }: TorrentR
         <div className="fd-card-title">
           <h3>{item.title}</h3>
           <div className="fd-card-sub">
-            <span className="fd-mono">{item.provider}</span>
-            <span className="fd-dot-sep" />
-            <span>{dateStr}</span>
+            <span className="fd-mono">{providerLabel(item.provider)}</span>
+            {dateStr && <><span className="fd-dot-sep" /><span>{dateStr}</span></>}
             {isError && <span className="fd-tag fd-tag-warn">Ошибка</span>}
           </div>
         </div>
@@ -73,19 +100,23 @@ export function TorrentResultCard({ item, index = 0, addState, onAdd }: TorrentR
         )}
         {isHDR && !is4k && <span className="fd-badge fd-badge-hdr">HDR</span>}
         {item.dub && <span className="fd-badge fd-badge-rel">{item.dub}</span>}
-        {item.subtitles && <span className="fd-badge fd-badge-rel">Sub: {item.subtitles}</span>}
-        {item.tags?.slice(0, 2).map(tag => (
+        {item.subtitles && (
+          <span className="fd-badge fd-badge-rel" title="Субтитры">Sub: {item.subtitles}</span>
+        )}
+        {extraTags.map(tag => (
           <span key={tag} className="fd-badge fd-badge-rel">{tag}</span>
         ))}
       </div>
 
       <div className="fd-card-meta">
+        {item.size && item.size !== "n/a" && (
+          <div className="fd-meta-row">
+            <span className="fd-meta-k">Размер</span>
+            <span className="fd-meta-v fd-mono">{item.size}</span>
+          </div>
+        )}
         <div className="fd-meta-row">
-          <span className="fd-meta-k">Размер</span>
-          <span className="fd-meta-v fd-mono">{item.size}</span>
-        </div>
-        <div className="fd-meta-row">
-          <span className="fd-meta-k">Сидеры</span>
+          <span className="fd-meta-k">Сиды/Пиры</span>
           <SeedersBar seeders={item.seeders} leechers={item.leechers} />
         </div>
       </div>

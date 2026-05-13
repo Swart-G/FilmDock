@@ -55,6 +55,10 @@ class ApiBayProvider:
                 continue
             if not title or len(info_hash) != 40:
                 continue
+            # Filter to video categories only (200-299)
+            category = self._to_int(entry.get("category"))
+            if category and not (200 <= category <= 299):
+                continue
 
             seeders = self._to_int(entry.get("seeders"))
             leechers = self._to_int(entry.get("leechers"))

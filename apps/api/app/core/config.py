@@ -21,16 +21,30 @@ class Settings(BaseSettings):
     ]
     rutracker_username: str | None = None
     rutracker_password: str | None = None
+    rutracker_ru_mirrors: list[str] = [
+        "https://rutracker.ru",
+    ]
     rutor_mirrors: list[str] = [
         "https://rutor.info",
+        "https://rutor.is",
     ]
+    kinozal_mirrors: list[str] = [
+        "https://kinozal.me",
+        "https://kinozal.tv",
+    ]
+    kinozal_username: str | None = None
+    kinozal_password: str | None = None
+    nnmclub_mirrors: list[str] = [
+        "https://nnmclub.to",
+    ]
+    anilibria_base_url: str = "https://anilibria.top"
     nyaa_base_url: str = "https://nyaa.si"
     yts_base_url: str = "https://yts.lt"
     animetosho_rss_url: str = "https://feed.animetosho.org/rss2"
-    torrent_search_timeout_seconds: float = 8.5
-    torrent_search_max_results: int = 200
+    torrent_search_timeout_seconds: float = 12.0
+    torrent_search_max_results: int = 300
     torrent_search_min_results: int = 24
-    torrent_search_target_results: int = 160
+    torrent_search_target_results: int = 200
     torrent_search_query_expansion_enabled: bool = True
     torrent_search_fallback_enabled: bool = True
     apibay_base_url: str = "https://apibay.org"

@@ -347,6 +347,7 @@ body { overflow: hidden; }
   outline: none;
 }
 .fd-select:hover { border-color: var(--border-hi); }
+.fd-select option { background: var(--surface); color: var(--text); }
 .fd-select-sm { height: 32px; font-size: 12px; }
 
 /* ─── RESULTS ──────────────────────────────────────────────── */

@@ -2,6 +2,7 @@ import { Search } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { CSSProperties, FormEvent } from "react";
 
+import { SortDropdown } from "./components/SortDropdown";
 import { TorrentResultCard } from "./components/TorrentResultCard";
 import type { TorrentAddState, TorrentResult, TorrentSortBy, TorrentSortOrder } from "./types";
 
@@ -9,7 +10,6 @@ type HomePageProps = {
   queryInput: string; magnetInput: string; query: string;
   resolution: string; dub: string; subtitles: string;
   sortBy: TorrentSortBy; sortOrder: TorrentSortOrder;
-  targetMediaType: "auto" | "movie" | "series";
   results: TorrentResult[]; loading: boolean; error: string | null;
   addState: TorrentAddState;
   onQueryInputChange: (value: string) => void;
@@ -19,7 +19,6 @@ type HomePageProps = {
   onDubChange: (value: string) => void;
   onSubtitlesChange: (value: string) => void;
   onSortChange: (sortBy: TorrentSortBy, sortOrder: TorrentSortOrder) => void;
-  onTargetMediaTypeChange: (value: "auto" | "movie" | "series") => void;
   onAdd: (item: TorrentResult) => void;
 };
 
@@ -42,6 +41,24 @@ function languageTokens(values: Array<string | null | undefined>) {
     value.split(",").map(token => token.trim().toUpperCase()).filter(Boolean).forEach(token => set.add(token));
   }
   return Array.from(set).sort((l, r) => l.localeCompare(r, "ru-RU"));
+}
+
+const PROVIDER_LABELS: Record<string, string> = {
+  "apibay.org": "TPB",
+  "rutracker.org": "RuTracker",
+  "rutracker.ru": "RuTracker.RU",
+  "rutor.info": "RuTor",
+  "rutor.is": "RuTor",
+  "kinozal.me": "Kinozal",
+  "kinozal.tv": "Kinozal",
+  "nnmclub.to": "NNM-Club",
+  "nyaa.si": "Nyaa",
+  "yts.lt": "YTS",
+  "animetosho": "AnimeTosho",
+};
+
+function providerLabel(provider: string): string {
+  return PROVIDER_LABELS[provider.toLowerCase()] ?? provider;
 }
 
 // ─── Magnet Modal ─────────────────────────────────────────────────────────
@@ -121,10 +138,10 @@ function FilterChips<T extends string>({ items, value, onChange }: { items: { va
 export function HomePage(props: HomePageProps) {
   const {
     queryInput, magnetInput, query, resolution, dub, subtitles,
-    sortBy, sortOrder, targetMediaType, results, loading, error, addState,
+    sortBy, sortOrder, results, loading, error, addState,
     onQueryInputChange, onMagnetInputChange, onSearch, onAddByMagnet,
     onResolutionChange, onDubChange, onSubtitlesChange,
-    onSortChange, onTargetMediaTypeChange, onAdd,
+    onSortChange, onAdd,
   } = props;
 
   const [magnetOpen, setMagnetOpen] = useState(false);
@@ -139,6 +156,19 @@ export function HomePage(props: HomePageProps) {
   const dubOptions = useMemo(() => {
     const detected = languageTokens(results.map(item => item.dub));
     return [{ value: "", label: "Любая" }, ...detected.map(value => ({ value, label: value }))];
+  }, [results]);
+
+  const subtitleOptions = useMemo(() => {
+    const detected = languageTokens(results.map(item => item.subtitles));
+    return [{ value: "", label: "Любые" }, ...detected.map(value => ({ value, label: value }))];
+  }, [results]);
+
+  const providerCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const item of results) {
+      counts[item.provider] = (counts[item.provider] ?? 0) + 1;
+    }
+    return counts;
   }, [results]);
 
   const sorted = useMemo(() => {
@@ -175,12 +205,6 @@ export function HomePage(props: HomePageProps) {
     onSearch();
   };
 
-  const TYPE_ITEMS = [
-    { value: "auto" as const,   label: "Все" },
-    { value: "movie" as const,  label: "Фильмы" },
-    { value: "series" as const, label: "Сериалы" },
-  ];
-
   const RESOLUTION_CHIP_ITEMS = [
     { value: "", label: "Любое" },
     { value: "2160p", label: "4K" },
@@ -216,10 +240,6 @@ export function HomePage(props: HomePageProps) {
 
         <div className="fd-filters">
           <div className="fd-filter-group">
-            <label>Тип</label>
-            <FilterChips items={TYPE_ITEMS} value={targetMediaType} onChange={onTargetMediaTypeChange} />
-          </div>
-          <div className="fd-filter-group">
             <label>Качество</label>
             <FilterChips items={RESOLUTION_CHIP_ITEMS} value={resolution} onChange={onResolutionChange} />
           </div>
@@ -227,8 +247,20 @@ export function HomePage(props: HomePageProps) {
             <div className="fd-filter-group">
               <label>Озвучка</label>
               <div className="fd-chips">
-                {dubOptions.slice(0, 5).map(it => (
+                {dubOptions.slice(0, 6).map(it => (
                   <button key={it.value} type="button" className={`fd-chip ${dub === it.value ? "is-on" : ""}`} onClick={() => onDubChange(it.value)}>
+                    {it.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          {subtitleOptions.length > 1 && (
+            <div className="fd-filter-group">
+              <label>Субтитры</label>
+              <div className="fd-chips">
+                {subtitleOptions.slice(0, 5).map(it => (
+                  <button key={it.value} type="button" className={`fd-chip ${subtitles === it.value ? "is-on" : ""}`} onClick={() => onSubtitlesChange(it.value)}>
                     {it.label}
                   </button>
                 ))}
@@ -238,22 +270,7 @@ export function HomePage(props: HomePageProps) {
           <div className="fd-filter-spacer" />
           <div className="fd-filter-group">
             <label>Сортировка</label>
-            <select
-              className="fd-select"
-              value={`${sortBy}_${sortOrder}`}
-              onChange={e => {
-                const [by, ord] = e.target.value.split("_") as [TorrentSortBy, TorrentSortOrder];
-                onSortChange(by, ord);
-              }}
-            >
-              <option value="relevance_desc">По релевантности</option>
-              <option value="seeders_desc">По сидерам (↓)</option>
-              <option value="seeders_asc">По сидерам (↑)</option>
-              <option value="size_desc">По размеру (↓)</option>
-              <option value="size_asc">По размеру (↑)</option>
-              <option value="date_desc">По дате (↓)</option>
-              <option value="quality_desc">По качеству (↓)</option>
-            </select>
+            <SortDropdown sortBy={sortBy} sortOrder={sortOrder} onChange={onSortChange} />
           </div>
         </div>
       </header>
@@ -267,7 +284,12 @@ export function HomePage(props: HomePageProps) {
           {results.length > 0 && (
             <div className="fd-results-sub">
               <span className="fd-pulse" />
-              {results.length} раздач найдено
+              {results.length} раздач ·{" "}
+              {Object.entries(providerCounts)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 5)
+                .map(([p, count]) => `${providerLabel(p)}: ${count}`)
+                .join(" · ")}
             </div>
           )}
         </div>
