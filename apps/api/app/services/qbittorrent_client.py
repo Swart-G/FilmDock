@@ -97,6 +97,43 @@ class QBittorrentClient:
         opener = self._login_opener()
         return self._get_torrent_with_opener(info_hash, opener=opener)
 
+    def set_torrent_location(self, info_hash: str, location: str) -> bool:
+        normalized = info_hash.strip().lower()
+        normalized_location = location.strip()
+        if not normalized or not normalized_location:
+            return False
+
+        opener = self._login_opener()
+        payload = {
+            "hashes": normalized,
+            "location": normalized_location,
+        }
+        encoded_payload = urlencode(payload).encode("utf-8")
+        request = Request(
+            f"{self.base_url}/api/v2/torrents/setLocation",
+            data=encoded_payload,
+            method="POST",
+            headers={
+                "Content-Type": "application/x-www-form-urlencoded",
+                "Referer": f"{self.base_url}/",
+                "Origin": self.base_url,
+            },
+        )
+        try:
+            with opener.open(request, timeout=30) as response:
+                if response.status != 200:
+                    raise RuntimeError(f"qBittorrent location update failed with HTTP {response.status}.")
+                return True
+        except HTTPError as exc:
+            error_body = exc.read().decode("utf-8", errors="replace").strip()
+            if exc.code in {401, 403}:
+                raise RuntimeError("qBittorrent session is unauthorized.") from exc
+            if error_body:
+                raise RuntimeError(f"qBittorrent location update HTTP {exc.code}: {error_body}") from exc
+            raise RuntimeError(f"qBittorrent location update HTTP {exc.code}.") from exc
+        except URLError as exc:
+            raise RuntimeError("qBittorrent is unreachable.") from exc
+
     def delete_torrent(self, info_hash: str, *, delete_files: bool = True) -> dict[str, bool]:
         normalized = info_hash.strip().lower()
         if not normalized:
