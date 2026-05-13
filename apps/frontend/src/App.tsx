@@ -232,6 +232,34 @@ function ToastStack({ toasts }: { toasts: ToastItem[] }) {
   );
 }
 
+// ─── Mobile bottom nav ────────────────────────────────────────────────────
+
+function MobileNav({ activeNav, onNavigate }: { activeNav: string; onNavigate: (id: string) => void }) {
+  const items = [
+    { id: "library",  label: "Библиотека", icon: <Library size={22} /> },
+    { id: "search",   label: "Поиск",       icon: <Search size={22} /> },
+    { id: "settings", label: "Настройки",   icon: <Settings size={22} /> },
+  ];
+  return (
+    <nav className="fd-mobile-nav" aria-label="Навигация">
+      {items.map(it => {
+        const active = it.id === activeNav;
+        return (
+          <button
+            key={it.id}
+            type="button"
+            className={`fd-mobile-nav-item ${active ? "is-active" : ""}`}
+            onClick={() => onNavigate(it.id)}
+          >
+            {it.icon}
+            <span>{it.label}</span>
+          </button>
+        );
+      })}
+    </nav>
+  );
+}
+
 // ─── Sidebar ───────────────────────────────────────────────────────────────
 
 type SidebarProps = {
@@ -587,7 +615,7 @@ export default function App() {
       finally { libraryPollingInFlightRef.current = false; }
     };
     poll().catch(() => undefined);
-    const intervalId = window.setInterval(() => poll().catch(() => undefined), 5000);
+    const intervalId = window.setInterval(() => poll().catch(() => undefined), 500);
     return () => { cancelled = true; window.clearInterval(intervalId); };
   }, [auth, route.name]);
 
@@ -792,6 +820,7 @@ export default function App() {
       />
 
       <main className="fd-main">
+
         {route.name === "home" && (
           <HomePage
             queryInput={queryInput} magnetInput={magnetInput} query={query}
@@ -847,6 +876,7 @@ export default function App() {
         )}
       </main>
 
+      <MobileNav activeNav={routeToNav(route)} onNavigate={handleNav} />
       <ToastStack toasts={toasts} />
     </div>
   );
@@ -1061,51 +1091,65 @@ function CompletedTorrentCard({
 
   return (
     <article
-      className="fd-info-card"
+      className="fd-active-card fd-done-card"
       style={{ "--ih": hue, animationDelay: `${index * 18}ms` } as CSSProperties}
-      onClick={() => onWatch(item)}
     >
-      <div className="fd-info-accent" />
-      <div className="fd-info-body">
-        <div className="fd-info-top">
-          <div className="fd-info-icon-wrap">
-            {isMovie
-              ? <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 7h18M3 12h18M3 17h18M8 3v18M16 3v18"/></svg>
-              : <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="m6 4 14 8-14 8Z"/></svg>
-            }
+      <div className="fd-active-card__header">
+        <div className="fd-active-card__icon" style={{ "--ih": hue } as CSSProperties}>
+          {isMovie
+            ? <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 7h18M3 12h18M3 17h18M8 3v18M16 3v18"/></svg>
+            : <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="m6 4 14 8-14 8Z"/></svg>
+          }
+        </div>
+        <div className="fd-active-card__title-wrap">
+          <div className="fd-active-card__title">{item.media_title ?? item.torrent_title}</div>
+          <div className="fd-active-card__sub">
+            <span className={`fd-info-badge ${item.can_watch ? "is-state-ok" : ""}`}>
+              {item.can_watch ? "Готов" : item.state}
+            </span>
+            {item.is_public && <span className="fd-info-badge is-state-ok">Публичный</span>}
           </div>
-          <h4 className="fd-info-title">{item.media_title ?? item.torrent_title}</h4>
-          <span className={`fd-info-badge ${item.can_watch ? "is-state-ok" : ""}`}>
-            {item.can_watch ? "Смотреть" : item.state}
-          </span>
         </div>
-        <div className="fd-info-meta">
-          <span>{item.media_type ?? "torrent"}</span>
-          <span className="fd-dot-sep" />
-          <span className="fd-mono">{formatBytes(item.size_bytes)}</span>
-          {item.is_public && <><span className="fd-dot-sep" /><span style={{ color: "var(--accent)" }}>публичный</span></>}
-        </div>
-        <div className="fd-info-date">{addedStr}</div>
       </div>
-      <div className="fd-info-arrow" onClick={e => {
-        e.stopPropagation();
-        if (onMakePublic || onDelete) {
-          /* handled inline */
-        }
-      }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+
+      <div className="fd-active-card__progress-wrap">
+        <div className="fd-active-card__progress-bar is-done" style={{ width: "100%" }} />
+      </div>
+
+      <div className="fd-active-card__meta">
+        <div className="fd-active-card__meta-item">
+          <span className="fd-active-card__meta-k">Тип</span>
+          <span className="fd-active-card__meta-v">{item.media_type ?? "torrent"}</span>
+        </div>
+        <div className="fd-active-card__meta-item">
+          <span className="fd-active-card__meta-k">Размер</span>
+          <span className="fd-active-card__meta-v">{formatBytes(item.size_bytes)}</span>
+        </div>
+        {item.added_at && (
+          <div className="fd-active-card__meta-item">
+            <span className="fd-active-card__meta-k">Добавлен</span>
+            <span className="fd-active-card__meta-v">{addedStr}</span>
+          </div>
+        )}
+      </div>
+
+      <div className="fd-active-card__foot">
+        <div style={{ fontSize: 11, color: "var(--dim)", fontFamily: "var(--font-mono)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>
+          {item.torrent_title.length > 48 ? item.torrent_title.slice(0, 48) + "…" : item.torrent_title}
+        </div>
+        <div className="fd-active-card__actions">
+          <button type="button" className="fd-icon-btn" onClick={() => onWatch(item)} title="Открыть в Jellyfin">
+            <ExternalLink size={14} />
+          </button>
           {onMakePublic && (
-            <button type="button" className="fd-icon-btn" style={{ width: 26, height: 26 }}
-              onClick={e => { e.stopPropagation(); onMakePublic(item.info_hash); }}
-              title={item.is_public ? "Сделать приватным" : "Публичный"}>
-              {item.is_public ? <EyeOff size={12} /> : <Eye size={12} />}
+            <button type="button" className="fd-icon-btn" onClick={() => onMakePublic(item.info_hash)}
+              title={item.is_public ? "Сделать приватным" : "Сделать публичным"}>
+              {item.is_public ? <EyeOff size={14} /> : <Eye size={14} />}
             </button>
           )}
           {onDelete && (
-            <button type="button" className="fd-icon-btn" style={{ width: 26, height: 26 }}
-              onClick={e => { e.stopPropagation(); onDelete(item.info_hash); }}
-              title="Удалить">
-              <Trash2 size={12} />
+            <button type="button" className="fd-icon-btn" onClick={() => onDelete(item.info_hash)} title="Удалить">
+              <Trash2 size={14} />
             </button>
           )}
         </div>

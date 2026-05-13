@@ -1,6 +1,39 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect width="64" height="64" rx="8" fill="#05080d"/>
-  <path d="M14 13h36v38H14z" fill="none" stroke="#58d7ff" stroke-width="4"/>
-  <path d="M22 13v38M32 13v38M42 13v38M14 23h36M14 33h36M14 43h36" stroke="#eef7ff" stroke-width="2" opacity=".85"/>
-  <path d="M25 24l17 8-17 8z" fill="#58d7ff"/>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0B0B0F"/>
+      <stop offset="100%" stop-color="#141318"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#FFB347"/>
+      <stop offset="100%" stop-color="#FF6E6E"/>
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="1.5" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="64" height="64" rx="14" fill="url(#bg)"/>
+
+  <!-- Film strip left -->
+  <rect x="8" y="14" width="8" height="36" rx="2" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.12)" stroke-width="0.5"/>
+  <rect x="9.5" y="17" width="5" height="4" rx="1" fill="rgba(255,255,255,0.18)"/>
+  <rect x="9.5" y="24" width="5" height="4" rx="1" fill="rgba(255,255,255,0.18)"/>
+  <rect x="9.5" y="31" width="5" height="4" rx="1" fill="rgba(255,255,255,0.18)"/>
+  <rect x="9.5" y="38" width="5" height="4" rx="1" fill="rgba(255,255,255,0.18)"/>
+
+  <!-- Film strip right -->
+  <rect x="48" y="14" width="8" height="36" rx="2" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.12)" stroke-width="0.5"/>
+  <rect x="49.5" y="17" width="5" height="4" rx="1" fill="rgba(255,255,255,0.18)"/>
+  <rect x="49.5" y="24" width="5" height="4" rx="1" fill="rgba(255,255,255,0.18)"/>
+  <rect x="49.5" y="31" width="5" height="4" rx="1" fill="rgba(255,255,255,0.18)"/>
+  <rect x="49.5" y="38" width="5" height="4" rx="1" fill="rgba(255,255,255,0.18)"/>
+
+  <!-- Center screen area -->
+  <rect x="19" y="14" width="26" height="36" rx="3" fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.08)" stroke-width="0.5"/>
+
+  <!-- Play button -->
+  <polygon points="27,23 27,41 43,32" fill="url(#accent)" filter="url(#glow)" opacity="0.95"/>
 </svg>
