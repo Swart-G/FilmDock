@@ -1,0 +1,830 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FilmDock</title>
+  <style>
+    :root {
+      --bg:      oklch(99% 0.002 240);
+      --surface: oklch(100% 0 0);
+      --fg:      oklch(18% 0.012 250);
+      --muted:   oklch(54% 0.012 250);
+      --border:  oklch(92% 0.005 250);
+      --accent:  oklch(58% 0.18 255);
+
+      --font-display: -apple-system, BlinkMacSystemFont, 'SF Pro Display', system-ui, sans-serif;
+      --font-body:    -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
+      --font-mono:    'JetBrains Mono', 'IBM Plex Mono', ui-monospace, Menlo, monospace;
+
+      --glass: color-mix(in oklch, var(--surface) 76%, transparent);
+      --glass-strong: color-mix(in oklch, var(--surface) 90%, transparent);
+      --accent-soft: color-mix(in oklch, var(--accent) 12%, transparent);
+      --success: oklch(60% 0.16 145);
+      --warn: oklch(74% 0.15 82);
+      --danger: oklch(58% 0.2 25);
+      --radius: 18px;
+    }
+
+    [data-theme="dark"] {
+      --bg: oklch(18% 0.012 250);
+      --surface: oklch(24% 0.014 250);
+      --fg: oklch(96% 0.004 250);
+      --muted: oklch(72% 0.014 250);
+      --border: oklch(35% 0.014 250);
+      --glass: color-mix(in oklch, var(--surface) 64%, transparent);
+      --glass-strong: color-mix(in oklch, var(--surface) 84%, transparent);
+      --accent-soft: color-mix(in oklch, var(--accent) 18%, transparent);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--fg);
+      background:
+        radial-gradient(circle at 18% 8%, color-mix(in oklch, var(--surface) 70%, transparent), transparent 28rem),
+        linear-gradient(135deg, color-mix(in oklch, var(--bg) 96%, var(--fg)), var(--bg) 42%, color-mix(in oklch, var(--bg) 94%, var(--fg)));
+      font-family: var(--font-body);
+      letter-spacing: 0;
+    }
+
+    button, input, select { font: inherit; }
+
+    .shell {
+      width: min(1420px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 28px 0;
+    }
+
+    .topbar {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 20px;
+      align-items: center;
+      margin-bottom: 18px;
+    }
+
+    .brand { min-width: 0; }
+
+    h1 {
+      margin: 0;
+      font-family: var(--font-display);
+      font-size: clamp(24px, 3vw, 40px);
+      line-height: 1.12;
+      letter-spacing: -0.01em;
+      font-weight: 650;
+    }
+
+    .subtitle {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .status-row {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
+    .chip {
+      min-height: 34px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 11px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: var(--glass);
+      backdrop-filter: blur(18px);
+      color: var(--muted);
+      font-size: 13px;
+      white-space: nowrap;
+    }
+
+    .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--success);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 18px;
+      align-items: start;
+    }
+
+    .panel {
+      border: 1px solid color-mix(in oklch, var(--border) 78%, transparent);
+      border-radius: var(--radius);
+      background: var(--glass);
+      backdrop-filter: blur(22px);
+      box-shadow: 0 18px 50px color-mix(in oklch, var(--fg) 8%, transparent);
+    }
+
+    .main-panel {
+      min-height: 710px;
+      overflow: hidden;
+    }
+
+    .tabs {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 6px;
+      padding: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .tab {
+      border: 0;
+      border-radius: 12px;
+      min-height: 44px;
+      color: var(--muted);
+      background: transparent;
+      cursor: pointer;
+      font-weight: 560;
+    }
+
+    .tab[aria-selected="true"] {
+      color: var(--fg);
+      background: var(--glass-strong);
+      box-shadow: inset 0 0 0 1px var(--border);
+    }
+
+    .tab-content {
+      display: none;
+      padding: 20px;
+    }
+
+    .tab-content.active { display: block; }
+
+    .section-head {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+
+    h2 {
+      margin: 0;
+      font-family: var(--font-display);
+      font-size: 24px;
+      line-height: 1.2;
+      letter-spacing: -0.01em;
+      font-weight: 640;
+    }
+
+    .muted {
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .control, .button {
+      min-height: 40px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--glass-strong);
+      color: var(--fg);
+      padding: 9px 12px;
+    }
+
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      cursor: pointer;
+      font-weight: 560;
+    }
+
+    .button.primary {
+      border-color: color-mix(in oklch, var(--accent) 42%, var(--border));
+      background: var(--accent);
+      color: white;
+    }
+
+    .button.ghost { background: transparent; }
+
+    .button.danger {
+      color: var(--danger);
+      border-color: color-mix(in oklch, var(--danger) 26%, var(--border));
+    }
+
+    .downloads {
+      display: grid;
+      gap: 10px;
+    }
+
+    .download {
+      display: grid;
+      grid-template-columns: minmax(220px, 1fr) 102px 112px 72px 88px 104px 120px;
+      gap: 14px;
+      align-items: center;
+      padding: 14px;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: color-mix(in oklch, var(--surface) 72%, transparent);
+    }
+
+    .download.selected {
+      border-color: color-mix(in oklch, var(--accent) 40%, var(--border));
+      background: var(--accent-soft);
+    }
+
+    .title {
+      min-width: 0;
+      font-weight: 620;
+      line-height: 1.3;
+    }
+
+    .meta {
+      margin-top: 5px;
+      color: var(--muted);
+      font-size: 13px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .metric {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      color: var(--fg);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .label {
+      display: block;
+      margin-bottom: 4px;
+      color: var(--muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+    }
+
+    .progress {
+      height: 7px;
+      margin-top: 8px;
+      border-radius: 999px;
+      overflow: hidden;
+      background: color-mix(in oklch, var(--border) 70%, transparent);
+    }
+
+    .bar {
+      height: 100%;
+      width: var(--value);
+      border-radius: inherit;
+      background: var(--accent);
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 24px;
+      border-radius: 999px;
+      padding: 4px 9px;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      background: color-mix(in oklch, var(--surface) 68%, transparent);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .pill.public {
+      color: var(--success);
+      border-color: color-mix(in oklch, var(--success) 30%, var(--border));
+      background: color-mix(in oklch, var(--success) 10%, transparent);
+    }
+
+    .actions {
+      display: flex;
+      gap: 6px;
+      justify-content: flex-end;
+    }
+
+    .icon-button {
+      width: 36px;
+      height: 36px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--glass-strong);
+      color: var(--fg);
+      cursor: pointer;
+    }
+
+    .summary-strip {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin: 0 0 18px;
+    }
+
+    .summary-card {
+      padding: 14px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: color-mix(in oklch, var(--surface) 54%, transparent);
+    }
+
+    .summary-card strong {
+      display: block;
+      font-family: var(--font-mono);
+      font-size: 18px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .stack {
+      display: grid;
+      gap: 10px;
+    }
+
+    .field {
+      display: grid;
+      gap: 6px;
+    }
+
+    .field label {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .input {
+      width: 100%;
+      min-height: 44px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--glass-strong);
+      color: var(--fg);
+      padding: 10px 12px;
+      outline: none;
+    }
+
+    .input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px color-mix(in oklch, var(--accent) 14%, transparent);
+    }
+
+    .work-card {
+      padding: 16px;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      background: color-mix(in oklch, var(--surface) 62%, transparent);
+    }
+
+    .create-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) minmax(320px, .65fr);
+      gap: 16px;
+      align-items: start;
+    }
+
+    .search-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 10px;
+      align-items: end;
+    }
+
+    .filter-grid {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(130px, 1fr));
+      gap: 10px;
+      margin-top: 4px;
+    }
+
+    .provider-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin: 16px 0;
+    }
+
+    .provider {
+      min-height: 52px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: color-mix(in oklch, var(--surface) 68%, transparent);
+      color: var(--fg);
+      cursor: pointer;
+      text-align: left;
+      padding: 10px;
+    }
+
+    .provider strong {
+      display: block;
+      font-size: 13px;
+      line-height: 1.2;
+    }
+
+    .provider.active {
+      border-color: color-mix(in oklch, var(--accent) 42%, var(--border));
+      background: var(--accent-soft);
+    }
+
+    .results {
+      display: grid;
+      gap: 10px;
+      margin-top: 16px;
+    }
+
+    .result {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 94px 82px 116px;
+      gap: 12px;
+      align-items: center;
+      padding: 13px;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: color-mix(in oklch, var(--surface) 70%, transparent);
+    }
+
+    .magnet-row {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+    }
+
+    .magnet-card {
+      padding: 16px;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      background: color-mix(in oklch, var(--surface) 62%, transparent);
+    }
+
+    .tweaks {
+      position: fixed;
+      right: 16px;
+      bottom: 16px;
+      z-index: 20;
+      display: flex;
+      gap: 8px;
+      padding: 8px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: var(--glass);
+      backdrop-filter: blur(20px);
+      box-shadow: 0 10px 28px color-mix(in oklch, var(--fg) 10%, transparent);
+    }
+
+    .tweak {
+      min-width: 42px;
+      min-height: 38px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: var(--glass-strong);
+      color: var(--fg);
+      cursor: pointer;
+    }
+
+    @media (max-width: 1100px) {
+      .grid { grid-template-columns: 1fr; }
+      .create-layout { grid-template-columns: 1fr; }
+      .filter-grid { grid-template-columns: repeat(3, minmax(130px, 1fr)); }
+      .download {
+        grid-template-columns: minmax(220px, 1fr) repeat(3, minmax(82px, auto)) 112px;
+      }
+      .download .seed-col, .download .status-col { display: none; }
+    }
+
+    @media (max-width: 760px) {
+      .shell {
+        width: min(100% - 20px, 1420px);
+        padding: 14px 0 84px;
+      }
+      .topbar { grid-template-columns: 1fr; }
+      .status-row { justify-content: flex-start; }
+      .section-head {
+        display: grid;
+        align-items: start;
+      }
+      .toolbar { width: 100%; }
+      .control, .button { flex: 1; }
+      .download {
+        grid-template-columns: 1fr;
+        gap: 10px;
+      }
+      .summary-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .search-row { grid-template-columns: 1fr; }
+      .filter-grid { grid-template-columns: 1fr; }
+      .actions { justify-content: flex-start; }
+      .provider-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .result { grid-template-columns: 1fr 80px; }
+      .result .hide-mobile { display: none; }
+      .tabs { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <div class="brand">
+        <div>
+          <h1>FilmDock</h1>
+          <p class="subtitle">Домашняя панель для загрузок, поиска торрентов и семейного доступа.</p>
+        </div>
+      </div>
+      <div class="status-row" aria-label="Статус сервера">
+        <span class="chip"><span class="dot"></span> Сервер онлайн</span>
+        <span class="chip">↓ 18.7 МБ/с</span>
+        <span class="chip">Диск: 2.1 ТБ свободно</span>
+      </div>
+    </header>
+
+    <main class="grid">
+      <section class="panel main-panel" aria-label="Рабочая область">
+        <nav class="tabs" aria-label="Основные вкладки">
+          <button class="tab" type="button" aria-selected="true" data-tab="downloads">Загрузки</button>
+          <button class="tab" type="button" aria-selected="false" data-tab="create">Новая загрузка</button>
+        </nav>
+
+        <div class="tab-content active" id="downloads" data-od-id="downloads-tab">
+          <div class="section-head">
+            <div>
+              <h2>Текущие торренты</h2>
+              <p class="muted">4 активных, 2 готовы к просмотру, 1 ожидает сидов.</p>
+            </div>
+            <div class="toolbar">
+              <select class="control" aria-label="Фильтр загрузок">
+                <option>Все загрузки</option>
+                <option>Скачиваются</option>
+                <option>Готовые</option>
+                <option>Публичные</option>
+              </select>
+              <button class="button ghost" type="button">Обновить</button>
+            </div>
+          </div>
+
+          <div class="summary-strip" aria-label="Сводка медиатеки">
+            <div class="summary-card"><span class="label">Активные</span><strong>4</strong><span class="muted">18.7 МБ/с суммарно</span></div>
+            <div class="summary-card"><span class="label">Готовые</span><strong>126</strong><span class="muted">В медиатеке FilmDock</span></div>
+            <div class="summary-card"><span class="label">Публичные</span><strong>18</strong><span class="muted">Видны семье</span></div>
+            <div class="summary-card"><span class="label">Диск</span><strong>2.1 ТБ</strong><span class="muted">Свободно</span></div>
+          </div>
+
+          <div class="downloads" data-od-id="torrent-list">
+            <article class="download selected">
+              <div>
+                <div class="title">Дюна: Часть вторая / 2160p HDR</div>
+                <div class="meta">movies/dune-part-two · добавлено сегодня в 19:42</div>
+                <div class="progress" aria-label="74 процента"><div class="bar" style="--value: 74%"></div></div>
+              </div>
+              <div><span class="label">Размер</span><span class="metric">82.4 ГБ</span></div>
+              <div><span class="label">Скорость</span><span class="metric">12.8 МБ/с</span></div>
+              <div class="seed-col"><span class="label">Сиды</span><span class="metric">184</span></div>
+              <div><span class="label">ETA</span><span class="metric">34 мин</span></div>
+              <div class="status-col"><span class="pill">Приватный</span></div>
+              <div class="actions">
+                <button class="icon-button" type="button" title="Открыть">↗</button>
+                <button class="icon-button" type="button" title="Сделать публичным">◉</button>
+                <button class="icon-button" type="button" title="Удалить">⌫</button>
+              </div>
+            </article>
+
+            <article class="download">
+              <div>
+                <div class="title">Foundation S03E04 / 1080p</div>
+                <div class="meta">series/foundation/s03 · автоматическая загрузка</div>
+                <div class="progress" aria-label="41 процент"><div class="bar" style="--value: 41%"></div></div>
+              </div>
+              <div><span class="label">Размер</span><span class="metric">5.8 ГБ</span></div>
+              <div><span class="label">Скорость</span><span class="metric">5.1 МБ/с</span></div>
+              <div class="seed-col"><span class="label">Сиды</span><span class="metric">62</span></div>
+              <div><span class="label">ETA</span><span class="metric">19 мин</span></div>
+              <div class="status-col"><span class="pill public">Публичный</span></div>
+              <div class="actions">
+                <button class="icon-button" type="button" title="Открыть">↗</button>
+                <button class="icon-button" type="button" title="Сделать приватным">◌</button>
+                <button class="icon-button" type="button" title="Удалить">⌫</button>
+              </div>
+            </article>
+
+            <article class="download">
+              <div>
+                <div class="title">Blue Planet II / Коллекция</div>
+                <div class="meta">documentaries/nature · доступно в медиатеке</div>
+                <div class="progress" aria-label="100 процентов"><div class="bar" style="--value: 100%"></div></div>
+              </div>
+              <div><span class="label">Размер</span><span class="metric">48.0 ГБ</span></div>
+              <div><span class="label">Скорость</span><span class="metric">0 КБ/с</span></div>
+              <div class="seed-col"><span class="label">Сиды</span><span class="metric">311</span></div>
+              <div><span class="label">ETA</span><span class="metric">Готово</span></div>
+              <div class="status-col"><span class="pill public">Публичный</span></div>
+              <div class="actions">
+                <button class="icon-button" type="button" title="Открыть">↗</button>
+                <button class="icon-button" type="button" title="Сделать приватным">◌</button>
+                <button class="icon-button" type="button" title="Удалить">⌫</button>
+              </div>
+            </article>
+
+            <article class="download">
+              <div>
+                <div class="title">The Bear S04 / WEB-DL</div>
+                <div class="meta">series/the-bear/s04 · ожидает доступных сидов</div>
+                <div class="progress" aria-label="8 процентов"><div class="bar" style="--value: 8%"></div></div>
+              </div>
+              <div><span class="label">Размер</span><span class="metric">18.6 ГБ</span></div>
+              <div><span class="label">Скорость</span><span class="metric">420 КБ/с</span></div>
+              <div class="seed-col"><span class="label">Сиды</span><span class="metric">7</span></div>
+              <div><span class="label">ETA</span><span class="metric">9 ч 12 м</span></div>
+              <div class="status-col"><span class="pill">Приватный</span></div>
+              <div class="actions">
+                <button class="icon-button" type="button" title="Открыть">↗</button>
+                <button class="icon-button" type="button" title="Сделать публичным">◉</button>
+                <button class="icon-button" type="button" title="Удалить">⌫</button>
+              </div>
+            </article>
+          </div>
+        </div>
+
+        <div class="tab-content" id="create" data-od-id="create-tab">
+          <div class="section-head">
+            <div>
+              <h2>Новая загрузка</h2>
+              <p class="muted">Поиск с фильтрами слева, прямое добавление magnet — справа.</p>
+            </div>
+            <div class="toolbar">
+              <span class="chip">Провайдеры: 4</span>
+              <span class="chip">Сортировка: по сидам</span>
+            </div>
+          </div>
+
+          <div class="create-layout">
+            <section class="work-card" data-od-id="search-panel">
+              <div class="stack">
+                <div class="search-row">
+                  <div class="field">
+                    <label for="search">Название, сезон, качество</label>
+                    <input class="input" id="search" value="andor season 2 2160p" aria-label="Поисковый запрос">
+                  </div>
+                  <button class="button primary" type="button">Искать</button>
+                </div>
+
+                <div class="filter-grid" aria-label="Фильтры поиска">
+                  <div class="field">
+                    <label for="type-filter">Тип</label>
+                    <select class="input" id="type-filter">
+                      <option>Фильм или сериал</option>
+                      <option>Фильм</option>
+                      <option>Сериал</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label for="resolution-filter">Разрешение</label>
+                    <select class="input" id="resolution-filter">
+                      <option>Любое</option>
+                      <option>2160p / 4K</option>
+                      <option>1080p</option>
+                      <option>720p</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label for="audio-filter">Озвучка</label>
+                    <select class="input" id="audio-filter">
+                      <option>Любая</option>
+                      <option>Русская</option>
+                      <option>Оригинал</option>
+                      <option>Многоголосая</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label for="subtitle-filter">Субтитры</label>
+                    <select class="input" id="subtitle-filter">
+                      <option>Не важно</option>
+                      <option>Русские</option>
+                      <option>Английские</option>
+                      <option>Без субтитров</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label for="sort-filter">Сортировка</label>
+                    <select class="input" id="sort-filter">
+                      <option>Больше сидов</option>
+                      <option>Меньше размер</option>
+                      <option>Лучшее качество</option>
+                      <option>Свежее сначала</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div class="provider-grid" aria-label="Провайдеры">
+                  <button class="provider active" type="button"><strong>RuTracker</strong></button>
+                  <button class="provider active" type="button"><strong>Kinozal</strong></button>
+                  <button class="provider" type="button"><strong>The Pirate Bay</strong></button>
+                  <button class="provider" type="button"><strong>Nyaa</strong></button>
+                </div>
+
+                <div class="results">
+                  <article class="result">
+                    <div>
+                      <div class="title">Andor S02 Complete / 2160p DV HDR</div>
+                      <div class="meta">RuTracker · сериал · HEVC · русская + оригинал · русские субтитры</div>
+                    </div>
+                    <span class="metric">74.2 ГБ</span>
+                    <span class="metric hide-mobile">418 сидов</span>
+                    <button class="button primary" type="button">В очередь</button>
+                  </article>
+                  <article class="result">
+                    <div>
+                      <div class="title">Andor S02 / 1080p WEB-DL</div>
+                      <div class="meta">Kinozal · сериал · EAC3 · русская озвучка · субтитры</div>
+                    </div>
+                    <span class="metric">28.6 ГБ</span>
+                    <span class="metric hide-mobile">195 сидов</span>
+                    <button class="button" type="button">В очередь</button>
+                  </article>
+                  <article class="result">
+                    <div>
+                      <div class="title">Andor S02E01-E06 / 2160p</div>
+                      <div class="meta">The Pirate Bay · сериал · оригинальная дорожка · английские субтитры</div>
+                    </div>
+                    <span class="metric">39.1 ГБ</span>
+                    <span class="metric hide-mobile">64 сида</span>
+                    <button class="button" type="button">В очередь</button>
+                  </article>
+                </div>
+              </div>
+            </section>
+
+            <section class="magnet-card" data-od-id="magnet-form">
+              <div class="stack">
+                <div>
+                  <h2>Magnet</h2>
+                  <p class="muted">Только вставка ссылки и выбор папки для загрузки.</p>
+                </div>
+                <div class="magnet-row">
+                  <div class="field">
+                    <label for="magnet">Magnet-ссылка</label>
+                    <input class="input" id="magnet" placeholder="magnet:?xt=urn:btih:..." aria-label="Magnet ссылка">
+                  </div>
+                  <div class="field">
+                    <label for="folder">Папка</label>
+                    <select class="input" id="folder" aria-label="Папка медиатеки">
+                      <option>Фильмы</option>
+                      <option>Сериалы</option>
+                      <option>Документальное</option>
+                      <option>Детям</option>
+                    </select>
+                  </div>
+                  <button class="button primary" type="button">Добавить magnet</button>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div class="tweaks" aria-label="Настройки вида">
+    <button class="tweak" type="button" id="themeToggle" title="Светлая или тёмная тема">◐</button>
+    <button class="tweak" type="button" id="densityToggle" title="Плотность списка">≡</button>
+  </div>
+
+  <script>
+    const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+      "theme": "light",
+      "compact": false
+    }/*EDITMODE-END*/;
+
+    const tabs = document.querySelectorAll(".tab");
+    const panes = document.querySelectorAll(".tab-content");
+    tabs.forEach((tab) => {
+      tab.addEventListener("click", () => {
+        const target = tab.dataset.tab;
+        tabs.forEach((item) => item.setAttribute("aria-selected", String(item === tab)));
+        panes.forEach((pane) => pane.classList.toggle("active", pane.id === target));
+      });
+    });
+
+    const savedTheme = localStorage.getItem("home-media-theme") || TWEAK_DEFAULTS.theme;
+    document.documentElement.dataset.theme = savedTheme;
+    document.getElementById("themeToggle").addEventListener("click", () => {
+      const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+      document.documentElement.dataset.theme = next;
+      localStorage.setItem("home-media-theme", next);
+    });
+
+    document.getElementById("densityToggle").addEventListener("click", () => {
+      const compact = document.body.dataset.compact !== "true";
+      document.body.dataset.compact = String(compact);
+      document.querySelectorAll(".download").forEach((row) => {
+        row.style.padding = compact ? "10px 12px" : "";
+      });
+    });
+  </script>
+</body>
+</html>
