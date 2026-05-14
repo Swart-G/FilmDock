@@ -1062,7 +1062,7 @@ function ActiveTorrentCard({
             </button>
           )}
           {!isForeign && onDelete && (
-            <button type="button" className="fd-icon-btn" onClick={() => onDelete(item.info_hash)} title="Удалить">
+            <button type="button" className="fd-icon-btn fd-icon-btn--danger" onClick={() => onDelete(item.info_hash)} title="Удалить">
               <Trash2 size={14} />
             </button>
           )}
@@ -1148,7 +1148,7 @@ function CompletedTorrentCard({
             </button>
           )}
           {onDelete && (
-            <button type="button" className="fd-icon-btn" onClick={() => onDelete(item.info_hash)} title="Удалить">
+            <button type="button" className="fd-icon-btn fd-icon-btn--danger" onClick={() => onDelete(item.info_hash)} title="Удалить">
               <Trash2 size={14} />
             </button>
           )}

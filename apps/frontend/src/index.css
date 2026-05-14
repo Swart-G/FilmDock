@@ -612,6 +612,8 @@ body { overflow: hidden; }
   cursor: pointer;
 }
 .fd-icon-btn:hover { color: var(--text); background: var(--surface-hi); }
+.fd-icon-btn--danger:hover,
+.fd-icon-btn--danger:active { color: #F87171; border-color: rgba(248,113,113,0.35); background: rgba(248,113,113,0.1); }
 
 .fd-modal-input {
   width: 100%;
@@ -1588,7 +1590,21 @@ body { overflow: hidden; }
   .fd-active-card__header { overflow: hidden; }
   .fd-active-card__title-wrap { overflow: hidden; min-width: 0; }
   .fd-active-card__title { font-size: 13px; }
-  .fd-active-card__foot { overflow: hidden; min-width: 0; }
+  .fd-active-card__foot {
+    overflow: hidden;
+    min-width: 0;
+    flex-wrap: nowrap;
+  }
+  .fd-active-card__foot > div:first-child {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .fd-active-card__actions {
+    flex-shrink: 0;
+  }
   .fd-active-card__meta { gap: 12px; }
 
   /* ─── Library bar (view toggle) ── */
