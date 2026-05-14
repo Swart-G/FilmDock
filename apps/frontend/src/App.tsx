@@ -115,17 +115,18 @@ type ThemeVars = {
 
 type TweakDirection = "noir" | "aurora";
 type TweakAccent = "amber" | "magenta" | "electric";
-type TweakFont = "inter" | "plex" | "manrope";
 type TweakTheme = "dark" | "light";
 
 type Tweaks = {
   direction: TweakDirection; accent: TweakAccent; density: string;
-  glow: number; radius: number; font: TweakFont; theme: TweakTheme;
+  glow: number; radius: number; theme: TweakTheme;
 };
+
+const FONT_STACK = '"IBM Plex Sans", system-ui, sans-serif';
 
 const TWEAK_DEFAULTS: Tweaks = {
   direction: "noir", accent: "amber", density: "cozy",
-  glow: 60, radius: 14, font: "inter", theme: "dark",
+  glow: 60, radius: 14, theme: "dark",
 };
 
 const DIRECTIONS: Record<TweakDirection, { label: string; dark: ThemeVars; light: ThemeVars }> = {
@@ -180,11 +181,6 @@ const ACCENTS: Record<TweakAccent, { hex: string; hex2: string; name: string }> 
   electric: { hex: "#5AC8FA", hex2: "#7A5AE0", name: "Электрик" },
 };
 
-const FONTS: Record<TweakFont, { stack: string; label: string }> = {
-  inter:   { stack: "Inter, system-ui, sans-serif", label: "Inter" },
-  plex:    { stack: '"IBM Plex Sans", Inter, system-ui, sans-serif', label: "Plex" },
-  manrope: { stack: "Manrope, system-ui, sans-serif", label: "Manrope" },
-};
 
 function useTweaks(defaults: Tweaks): [Tweaks, (key: keyof Tweaks, value: Tweaks[keyof Tweaks]) => void] {
   const [values, setValues] = useState<Tweaks>(() => {
@@ -491,7 +487,6 @@ export default function App() {
 
   const dir = DIRECTIONS[t.direction] ?? DIRECTIONS.noir;
   const acc = ACCENTS[t.accent] ?? ACCENTS.amber;
-  const font = FONTS[t.font] ?? FONTS.inter;
   const theme = t.theme;
   const themeVars = dir[theme] ?? dir.dark;
 
@@ -511,7 +506,7 @@ export default function App() {
     "--radius-sm":  `${Math.max(6, t.radius - 6)}px`,
     "--radius-lg":  `${t.radius + 8}px`,
     "--glow":       String(t.glow / 100),
-    "--font":       font.stack,
+    "--font":       FONT_STACK,
     "--bg-img":     themeVars.bgImg,
   } as CSSProperties;
 
@@ -1530,18 +1525,6 @@ function SettingsPage({
                   <button key={id} type="button" className={`fd-accent-swatch ${t.accent === id ? "is-on" : ""}`} style={{ "--sw": ac.hex } as CSSProperties} onClick={() => setTweak("accent", id)} title={ac.name}>
                     {t.accent === id && <Check size={14} />}
                   </button>
-                ))}
-              </div>
-            </div>
-            <div className="fd-set-divider" />
-            <div className="fd-set-row">
-              <div className="fd-set-row-l">
-                <span className="fd-set-label">Шрифт</span>
-                <span className="fd-set-desc">Семейство символов интерфейса</span>
-              </div>
-              <div className="fd-set-seg">
-                {(Object.entries(FONTS) as [TweakFont, { stack: string; label: string }][]).map(([id, f]) => (
-                  <button key={id} type="button" className={`fd-set-seg-btn ${t.font === id ? "is-on" : ""}`} onClick={() => setTweak("font", id)}>{f.label}</button>
                 ))}
               </div>
             </div>

@@ -6,7 +6,6 @@ const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
   "density": "cozy",
   "glow": 60,
   "radius": 14,
-  "font": "inter",
   "theme": "dark"
 }/*EDITMODE-END*/;
 
@@ -62,11 +61,7 @@ const ACCENTS = {
   electric: { hex: '#5AC8FA', hex2: '#7A5AE0', name: 'Электрик'},
 };
 
-const FONTS = {
-  inter:   { stack: 'Inter, system-ui, sans-serif', label: 'Inter' },
-  plex:    { stack: '"IBM Plex Sans", "Inter", system-ui, sans-serif', label: 'Plex' },
-  manrope: { stack: 'Manrope, system-ui, sans-serif', label: 'Manrope' },
-};
+const FONT_STACK = '"IBM Plex Sans", system-ui, sans-serif';
 
 function Toast({ toast }) {
   return (
@@ -105,7 +100,6 @@ function App() {
 
   const dir = DIRECTIONS[t.direction] || DIRECTIONS.noir;
   const acc = ACCENTS[t.accent] || ACCENTS.amber;
-  const font = FONTS[t.font] || FONTS.inter;
   const theme = t.theme || 'dark';
   const themeVars = dir[theme] || dir.dark;
 
@@ -125,7 +119,7 @@ function App() {
     '--radius-sm':  Math.max(6, t.radius - 6) + 'px',
     '--radius-lg':  (t.radius + 8) + 'px',
     '--glow':       (t.glow / 100).toString(),
-    '--font':       font.stack,
+    '--font':       FONT_STACK,
     '--bg-img':     themeVars.bgImg,
   };
 
@@ -191,19 +185,6 @@ function App() {
             value={t.glow}
             min={0} max={100} step={5} unit="%"
             onChange={(v) => setTweak('glow', v)}
-          />
-        </TweakSection>
-
-        <TweakSection label="Типографика">
-          <TweakRadio
-            label="Шрифт"
-            value={t.font}
-            options={[
-              { value: 'inter',   label: 'Inter' },
-              { value: 'plex',    label: 'Plex' },
-              { value: 'manrope', label: 'Manrope' },
-            ]}
-            onChange={(v) => setTweak('font', v)}
           />
         </TweakSection>
 

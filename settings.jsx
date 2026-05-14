@@ -171,23 +171,6 @@ function SettingsScreen({ t, setTweak }) {
 
             <div className="fd-set-row">
               <div className="fd-set-row-l">
-                <span className="fd-set-label">Шрифт</span>
-                <span className="fd-set-desc">Семейство символов интерфейса</span>
-              </div>
-              <SetSeg
-                value={t.font}
-                options={[
-                  { value: 'inter',   label: 'Inter'  },
-                  { value: 'plex',    label: 'Plex'   },
-                  { value: 'manrope', label: 'Manrope'},
-                ]}
-                onChange={v => setTweak('font', v)}
-              />
-            </div>
-            <div className="fd-set-divider" />
-
-            <div className="fd-set-row">
-              <div className="fd-set-row-l">
                 <span className="fd-set-label">Плотность сетки</span>
                 <span className="fd-set-desc">Размер карточек библиотеки</span>
               </div>
