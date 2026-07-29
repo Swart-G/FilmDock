@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from secrets import token_hex
 from http.cookiejar import CookieJar
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
@@ -21,14 +22,33 @@ class QBittorrentClient:
         *,
         magnet_url: str | None = None,
         download_url: str | None = None,
+        torrent_file: bytes | None = None,
+        torrent_filename: str | None = None,
         save_path: str | None = None,
         category: str | None = None,
     ) -> dict[str, object]:
         source = magnet_url or download_url
-        if not source:
+        if not source and torrent_file is None:
             raise RuntimeError("No torrent source provided. Use magnet_url or download_url.")
 
         opener = self._login_opener()
+        if torrent_file is not None:
+            self._upload_torrent_file(
+                opener=opener,
+                torrent_file=torrent_file,
+                torrent_filename=torrent_filename or f"{info_hash}.torrent",
+                save_path=save_path,
+                category=category,
+            )
+            torrent = self._get_torrent_with_opener(info_hash, opener=opener)
+            return {
+                "accepted": True,
+                "info_hash": info_hash,
+                "message": "Torrent file uploaded to qBittorrent.",
+                "present_in_qb": torrent is not None,
+                "torrent": torrent,
+            }
+
         payload = {
             "urls": source,
         }
@@ -77,6 +97,71 @@ class QBittorrentClient:
             "present_in_qb": torrent is not None,
             "torrent": torrent,
         }
+
+    def _upload_torrent_file(
+        self,
+        *,
+        opener,
+        torrent_file: bytes,
+        torrent_filename: str,
+        save_path: str | None,
+        category: str | None,
+    ) -> None:
+        boundary = f"----FilmDock{token_hex(16)}"
+        parts: list[bytes] = []
+
+        def add_field(name: str, value: str) -> None:
+            parts.append(f"--{boundary}\r\n".encode("utf-8"))
+            parts.append(f'Content-Disposition: form-data; name="{name}"\r\n\r\n'.encode("utf-8"))
+            parts.append(value.encode("utf-8"))
+            parts.append(b"\r\n")
+
+        def add_file(name: str, filename: str, data: bytes) -> None:
+            safe_filename = filename.replace('"', "").replace("\r", "").replace("\n", "") or "download.torrent"
+            parts.append(f"--{boundary}\r\n".encode("utf-8"))
+            parts.append(
+                (
+                    f'Content-Disposition: form-data; name="{name}"; filename="{safe_filename}"\r\n'
+                    "Content-Type: application/x-bittorrent\r\n\r\n"
+                ).encode("utf-8")
+            )
+            parts.append(data)
+            parts.append(b"\r\n")
+
+        add_file("torrents", torrent_filename, torrent_file)
+        if save_path:
+            add_field("savepath", save_path)
+        if category:
+            add_field("category", category)
+        parts.append(f"--{boundary}--\r\n".encode("utf-8"))
+        body = b"".join(parts)
+
+        request = Request(
+            f"{self.base_url}/api/v2/torrents/add",
+            data=body,
+            method="POST",
+            headers={
+                "Content-Type": f"multipart/form-data; boundary={boundary}",
+                "Referer": f"{self.base_url}/",
+                "Origin": self.base_url,
+            },
+        )
+        try:
+            with opener.open(request, timeout=30) as response:
+                response_body = response.read().decode("utf-8", errors="replace").strip()
+                if response.status != 200:
+                    raise RuntimeError(f"qBittorrent add failed with HTTP {response.status}.")
+                if response_body not in {"", "Ok.", "Fails."}:
+                    raise RuntimeError(f"qBittorrent rejected torrent upload request: {response_body}")
+        except HTTPError as exc:
+            error_body = exc.read().decode("utf-8", errors="replace").strip()
+            if exc.code in {401, 403}:
+                raise RuntimeError("qBittorrent session is unauthorized.") from exc
+            if error_body:
+                raise RuntimeError(f"qBittorrent upload HTTP {exc.code}: {error_body}") from exc
+            raise RuntimeError(f"qBittorrent upload HTTP {exc.code}.") from exc
+        except URLError as exc:
+            raise RuntimeError("qBittorrent is unreachable.") from exc
 
     def create_webui_session(self) -> str:
         opener = self._login_opener()

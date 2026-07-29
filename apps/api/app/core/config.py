@@ -48,6 +48,8 @@ class Settings(BaseSettings):
     torrent_search_query_expansion_enabled: bool = True
     torrent_search_fallback_enabled: bool = True
     apibay_base_url: str = "https://apibay.org"
+    knaben_api_base_url: str = "https://api.knaben.org/v1"
+    torrents_csv_api_base_url: str = "https://torrents-csv.com/service"
 
     model_config = SettingsConfigDict(env_prefix="SWARTTUBE_", extra="ignore")
 

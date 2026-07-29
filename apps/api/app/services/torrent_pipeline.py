@@ -17,10 +17,22 @@ from app.services.jellyfin_client import (
     JellyfinRequestError,
 )
 from app.services.qbittorrent_client import QBittorrentClient
+from app.services.torrent_file import TorrentFileError, fetch_torrent_file, torrent_info_hash
 
 SERIES_HINT_RE = re.compile(
     r"(?i)(?:\bS\d{1,2}E\d{1,2}\b|\bseason\s*\d+\b|\bсезон\s*\d+\b|\bep(?:isode)?\s*\d+\b|\bсерия\b)"
 )
+CLASSIFICATION_SERIES_PATTERNS = [
+    re.compile(r"(?i)\bS\d{1,2}E\d{1,3}\b"),
+    re.compile(r"(?i)\b\d{1,2}x\d{1,3}\b"),
+    re.compile(r"(?i)\b(?:ep|episode|серия)\s*\.?\s*\d{1,3}\b"),
+]
+AUXILIARY_VIDEO_RE = re.compile(
+    r"(?i)(?:^|[\\/.\s_\-\[\(])(?:sample|trailer|teaser|preview|extra|extras|bonus|featurette|"
+    r"behind[.\s_-]*the[.\s_-]*scenes|deleted[.\s_-]*scenes|сэмпл|трейлер)(?:$|[\\/.\s_\-\]\)])"
+)
+MIN_RELATED_VIDEO_BYTES = 32 * 1024 * 1024
+QB_MISSING_GRACE_SECONDS = 120
 VIDEO_EXTENSIONS = {
     ".avi",
     ".m2ts",
@@ -86,6 +98,18 @@ def _safe_int(value: object | None) -> int | None:
         return None
 
 
+def _parse_iso_datetime(value: object | None) -> datetime | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.strip())
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
+
+
 class TorrentPipelineService:
     def __init__(self, qb_client: QBittorrentClient | None = None, jellyfin_client: JellyfinClient | None = None) -> None:
         self.qb_client = qb_client or QBittorrentClient()
@@ -116,6 +140,16 @@ class TorrentPipelineService:
     ) -> dict[str, object]:
         resolved_title = media_title.strip() or "Unknown media"
         resolved_type = self.infer_media_type(media_type, resolved_title)
+        torrent_file: bytes | None = None
+        torrent_filename: str | None = None
+
+        if not magnet_url and download_url:
+            try:
+                torrent_file = fetch_torrent_file(download_url)
+                info_hash = torrent_info_hash(torrent_file)
+                torrent_filename = f"{self._safe_media_name(resolved_title) or info_hash}.torrent"
+            except TorrentFileError as error:
+                raise RuntimeError(str(error)) from error
 
         existing_torrent = repositories.get_torrent(info_hash)
         if existing_torrent is not None and str(existing_torrent["owner_user_id"]) != user_id:
@@ -142,7 +176,9 @@ class TorrentPipelineService:
         qb_result = self.qb_client.add_torrent(
             info_hash,
             magnet_url=magnet_url,
-            download_url=download_url,
+            download_url=None if torrent_file is not None else download_url,
+            torrent_file=torrent_file,
+            torrent_filename=torrent_filename,
             save_path=save_path,
             category=resolved_type,
         )
@@ -170,7 +206,8 @@ class TorrentPipelineService:
             watch_reason="syncing",
         )
 
-        self.sync_torrents([repositories.get_torrent(info_hash)] if repositories.get_torrent(info_hash) else [])
+        if isinstance(qb_torrent, dict):
+            self.sync_torrents([repositories.get_torrent(info_hash)] if repositories.get_torrent(info_hash) else [])
         return {
             "accepted": True,
             "mapped": True,
@@ -341,6 +378,17 @@ class TorrentPipelineService:
     def _handle_missing_qb_torrent(self, record: dict[str, object]) -> None:
         if bool(record.get("can_watch")) and record.get("asset_id"):
             return
+        if self._missing_grace_active(record):
+            repositories.update_torrent_fields(
+                str(record["info_hash"]),
+                {
+                    "state": "DOWNLOADING",
+                    "status_group": "downloading",
+                    "can_watch": 0,
+                    "watch_reason": "syncing",
+                },
+            )
+            return
         repositories.update_torrent_fields(
             str(record["info_hash"]),
             {
@@ -350,6 +398,12 @@ class TorrentPipelineService:
                 "watch_reason": "not_available",
             },
         )
+
+    def _missing_grace_active(self, record: dict[str, object]) -> bool:
+        added_at = _parse_iso_datetime(record.get("added_at"))
+        if added_at is None:
+            return False
+        return (datetime.now(UTC) - added_at).total_seconds() < QB_MISSING_GRACE_SECONDS
 
     def _sync_completed_torrent(self, record: dict[str, object], qb_payload: dict[str, object]) -> dict[str, object]:
         info_hash = str(record["info_hash"]).lower()
@@ -468,6 +522,13 @@ class TorrentPipelineService:
                 resolved_content_path = os.path.realpath(content_path)
                 if resolved_content_path and resolved_content_path != content_path:
                     selected = self._select_jellyfin_item(items, media_title=media_title, media_type=media_type, content_path=resolved_content_path)
+            if selected is None and content_path:
+                selected = self._find_jellyfin_item_by_path(
+                    include_types=include_types,
+                    media_title=media_title,
+                    media_type=media_type,
+                    content_path=content_path,
+                )
             if selected is None:
                 repositories.update_asset_fields(asset_id, {"state": "SYNCING"})
                 return {"can_watch": False, "watch_reason": "syncing", "asset_id": asset_id}
@@ -581,7 +642,7 @@ class TorrentPipelineService:
         if not source.exists():
             return current_media_type
         video_files = self._video_files(source)
-        if len(video_files) >= 2:
+        if video_files and self._looks_like_series_source(source=source, video_files=video_files):
             return "series"
         return current_media_type
 
@@ -619,6 +680,16 @@ class TorrentPipelineService:
             if series_path:
                 return series_path
 
+        if source_resolved.is_file():
+            file_path = self._ensure_file_access_path(
+                mirror_root=mirror_root_path,
+                info_hash=info_hash,
+                source=source_resolved,
+                media_title=media_title,
+            )
+            if file_path:
+                return file_path
+
         if source_resolved == mirror_root_resolved or str(source_resolved).startswith(f"{mirror_root_resolved}/"):
             return str(source_resolved)
 
@@ -638,6 +709,31 @@ class TorrentPipelineService:
             return str(target)
         except OSError:
             return str(source_resolved)
+
+    def _ensure_file_access_path(self, *, mirror_root: Path, info_hash: str, source: Path, media_title: str) -> str:
+        title = self._safe_media_name(media_title) or self._safe_media_name(source.stem) or info_hash
+        suffix = source.suffix.lower()
+        target = mirror_root / f"{title} [{info_hash[:8]}]{suffix}"
+        legacy_target = mirror_root / info_hash
+
+        if legacy_target != target and (legacy_target.is_symlink() or legacy_target.is_file()):
+            self._remove_path_if_present(legacy_target)
+
+        if target.exists() or target.is_symlink():
+            if target.is_symlink():
+                try:
+                    existing_target = os.readlink(target)
+                except OSError:
+                    existing_target = ""
+                if os.path.realpath(existing_target) == str(source):
+                    return str(target)
+            self._remove_path_if_present(target)
+
+        try:
+            os.symlink(str(source), str(target), target_is_directory=False)
+            return str(target)
+        except OSError:
+            return str(source)
 
     def _ensure_series_access_path(self, *, mirror_root: Path, info_hash: str, source: Path, media_title: str) -> str:
         video_files = self._video_files(source)
@@ -676,7 +772,48 @@ class TorrentPipelineService:
         if not source.is_dir():
             return []
         files = [path for path in source.rglob("*") if path.is_file() and path.suffix.lower() in VIDEO_EXTENSIONS]
+        files = self._primary_video_files(files)
         return sorted(files, key=lambda path: [int(part) if part.isdigit() else part.lower() for part in re.split(r"(\d+)", str(path.relative_to(source)))])
+
+    def _primary_video_files(self, files: list[Path]) -> list[Path]:
+        if not files:
+            return []
+
+        without_auxiliary = [path for path in files if not AUXILIARY_VIDEO_RE.search(str(path))]
+        candidates = without_auxiliary or files
+        if len(candidates) <= 1:
+            return candidates
+
+        sizes: dict[Path, int] = {}
+        for path in candidates:
+            try:
+                sizes[path] = path.stat().st_size
+            except OSError:
+                sizes[path] = 0
+
+        max_size = max(sizes.values(), default=0)
+        if max_size <= 0:
+            return candidates
+
+        threshold = max(MIN_RELATED_VIDEO_BYTES, int(max_size * 0.08))
+        filtered = [
+            path
+            for path in candidates
+            if sizes.get(path, 0) >= threshold or self._path_has_series_hint(path)
+        ]
+        return filtered or candidates
+
+    def _looks_like_series_source(self, *, source: Path, video_files: list[Path]) -> bool:
+        source_text = str(source)
+        if SERIES_HINT_RE.search(source_text):
+            return True
+        return any(self._path_has_series_hint(path) for path in video_files)
+
+    def _path_has_series_hint(self, path: Path) -> bool:
+        text = str(path)
+        if SERIES_HINT_RE.search(text):
+            return True
+        return any(pattern.search(text) for pattern in CLASSIFICATION_SERIES_PATTERNS)
 
     def _episode_numbers(self, path: Path, *, fallback_episode: int) -> tuple[int, int]:
         name = path.stem
@@ -755,6 +892,7 @@ class TorrentPipelineService:
         if safe_title:
             candidates.append(str(mirror_root / f"{safe_title} [{normalized_hash[:8]}]"))
         candidates.extend(str(path) for path in mirror_root.glob(f"* [{normalized_hash[:8]}]"))
+        candidates.extend(str(path) for path in mirror_root.glob(f"* [{normalized_hash[:8]}].*"))
         return list(dict.fromkeys(candidates))
 
     def _remove_stale_jellyfin_items_for_prefixes(self, prefixes: list[str]) -> None:
@@ -817,12 +955,19 @@ class TorrentPipelineService:
         if not items:
             return None
         normalized_title = media_title.strip().lower()
-        target_path = content_path.strip().lower()
-        resolved_target_path = os.path.realpath(content_path).strip().lower() if content_path.strip() else ""
+        target_path = content_path.strip().rstrip("/").lower()
+        resolved_target_path = os.path.realpath(content_path).strip().rstrip("/").lower() if content_path.strip() else ""
         target_name = PurePosixPath(target_path).name.lower() if target_path else ""
+        target_parent_name = PurePosixPath(target_path).parent.name.lower() if target_path else ""
+
+        def path_matches(path: str, candidate: str) -> bool:
+            if not path or not candidate:
+                return False
+            return path == candidate or path.startswith(f"{candidate}/")
 
         def score(item: dict[str, object]) -> tuple[int, int, int]:
-            path = str(item.get("Path") or item.get("path") or "").strip().lower()
+            path = str(item.get("Path") or item.get("path") or "").strip().rstrip("/").lower()
+            resolved_path = os.path.realpath(path).strip().rstrip("/").lower() if path else ""
             name = str(item.get("Name") or item.get("name") or "").strip().lower()
             item_type = str(item.get("Type") or item.get("type") or "").strip().lower()
             type_score = 0
@@ -834,11 +979,16 @@ class TorrentPipelineService:
             path_score = 0
             title_score = 0
             if target_path and path:
-                if path == target_path or (resolved_target_path and path == resolved_target_path):
-                    path_score = 5
+                item_paths = [path]
+                if resolved_path and resolved_path != path:
+                    item_paths.append(resolved_path)
+                if any(path_matches(item_path, target_path) for item_path in item_paths) or (
+                    resolved_target_path and any(path_matches(item_path, resolved_target_path) for item_path in item_paths)
+                ):
+                    path_score = 6
                 elif target_name and target_name in path:
                     path_score = 3
-                elif PurePosixPath(target_path).parent.name and PurePosixPath(target_path).parent.name in path:
+                elif target_parent_name and target_parent_name in path:
                     path_score = 2
             if normalized_title and name:
                 if name == normalized_title:
@@ -853,3 +1003,39 @@ class TorrentPipelineService:
         if best_score[0] == 0 and best_score[1] == 0:
             return None
         return best
+
+    def _find_jellyfin_item_by_path(
+        self,
+        *,
+        include_types: str,
+        media_title: str,
+        media_type: str,
+        content_path: str,
+    ) -> dict[str, object] | None:
+        try:
+            items = self.jellyfin_client.list_items(
+                include_item_types=include_types,
+                fields="Path",
+                limit=200,
+            )
+        except (JellyfinConfigurationError, JellyfinNetworkError, JellyfinRequestError):
+            return None
+
+        selected = self._select_jellyfin_item(
+            items,
+            media_title=media_title,
+            media_type=media_type,
+            content_path=content_path,
+        )
+        if selected is not None:
+            return selected
+
+        resolved_content_path = os.path.realpath(content_path).strip()
+        if not resolved_content_path or resolved_content_path == content_path:
+            return None
+        return self._select_jellyfin_item(
+            items,
+            media_title=media_title,
+            media_type=media_type,
+            content_path=resolved_content_path,
+        )

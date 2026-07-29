@@ -12,11 +12,13 @@ from app.services.providers.anilibria import AnilibriaProvider
 from app.services.providers.animetosho import AnimeToshoProvider
 from app.services.providers.apibay import ApiBayProvider
 from app.services.providers.kinozal import KinozalProvider
+from app.services.providers.knaben import KnabenProvider
 from app.services.providers.nnmclub import NnmClubProvider
 from app.services.providers.nyaa import NyaaProvider
 from app.services.providers.rutor import RutorProvider
 from app.services.providers.rutracker import RutrackerProvider
 from app.services.providers.rutracker_ru import RutrackerRuProvider
+from app.services.providers.torrents_csv import TorrentsCsvProvider
 from app.services.providers.yts import YtsProvider
 
 QUALITY_RANKS = {
@@ -47,7 +49,12 @@ _NON_VIDEO_RE = re.compile(
 
     # Known game crack distributor names (very specific)
     \bFitGirl[\s\-]?[Rr]epack\b |
+    \bDODI[\s\-]?[Rr]epack\b |
+    \[[Rr]epack\]\s+by\b |
     \b(?:CODEX|SKIDROW|CPY|EMPRESS|PLAZA|HOODLUM|RAZZLE|RAZORDOX|PROPHET)\s+(?:crack|release)\b |
+
+    # Versioned game releases: "Part I v.1.1.4", "Part II v 2.0"
+    \bPart\s+[IVX]+\s+v\.?\s*\d+(?:\.\d+)+ |
 
     # DLC suffix in game titles: "Complete Edition + DLC", "[v 1.0 + DLC]"
     \+\s*DLC\b |
@@ -141,6 +148,8 @@ class TorrentSearchService:
     def __init__(self) -> None:
         self.primary_provider = ApiBayProvider()
         self.secondary_providers: list[SearchProvider] = [
+            KnabenProvider(),
+            TorrentsCsvProvider(),
             RutrackerRuProvider(),
             KinozalProvider(),
             RutrackerProvider(),

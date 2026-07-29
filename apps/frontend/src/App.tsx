@@ -694,8 +694,9 @@ export default function App() {
       setAddState(state => ({ ...state, [item.info_hash]: "done" }));
       pushToast({ title: "Загрузка добавлена", body: `${item.title} · ${item.size}`, kind: "success" });
       if (auth) loadDashboardData(auth).catch(() => undefined);
-    } catch {
+    } catch (reason: unknown) {
       setAddState(state => ({ ...state, [item.info_hash]: "error" }));
+      pushToast({ title: "Не удалось добавить", body: reason instanceof Error ? reason.message : undefined, kind: "error" });
     }
   }
 
