@@ -1,7 +1,7 @@
 import { ArrowUpDown, Check, ChevronDown, ChevronUp } from "lucide-react";
 import { useEffect, useState } from "react";
 
-import { useDismissibleLayer } from "../../../hooks/useDismissibleLayer";
+import { useDismissibleLayer, useEscapeKey } from "../../../hooks/useDismissibleLayer";
 import type { TorrentSortBy, TorrentSortOrder } from "../types";
 
 type SortDropdownProps = {
@@ -36,6 +36,7 @@ export function SortDropdown({ sortBy, sortOrder, onChange }: SortDropdownProps)
   const [open, setOpen] = useState(false);
   const isMobile = useIsMobile();
   const ref = useDismissibleLayer<HTMLDivElement>(open && !isMobile, () => setOpen(false));
+  useEscapeKey(open && isMobile, () => setOpen(false));
   const current = OPTIONS.find((o) => o.value === sortBy)?.label ?? "По релевантности";
 
   const handleSelect = (value: TorrentSortBy) => {
@@ -53,34 +54,36 @@ export function SortDropdown({ sortBy, sortOrder, onChange }: SortDropdownProps)
       type="button"
       onClick={() => setOpen((v) => !v)}
       className="fd-sort-trigger"
+      aria-haspopup={isMobile ? "dialog" : "menu"}
+      aria-expanded={open}
+      aria-label={`Сортировка: ${current}${sortBy !== "relevance" ? (sortOrder === "desc" ? ", по убыванию" : ", по возрастанию") : ""}`}
     >
-      <ArrowUpDown size={13} style={{ color: "var(--muted)", flexShrink: 0 }} />
+      <ArrowUpDown size={13} className="fd-sort-icon" aria-hidden="true" />
       <span>{current}</span>
       {sortBy !== "relevance" && (
-        <span className="fd-sort-order-badge">
+        <span className="fd-sort-order-badge" aria-hidden="true">
           {sortOrder === "desc" ? "↓" : "↑"}
         </span>
       )}
-      {open && isMobile
-        ? <ChevronDown size={13} style={{ color: "var(--muted)", flexShrink: 0 }} />
-        : <ChevronDown size={13} style={{ color: "var(--muted)", flexShrink: 0, transform: open ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.15s" }} />
-      }
+      <ChevronDown size={13} className={`fd-sort-icon fd-sort-chevron ${open && !isMobile ? "is-open" : ""}`} aria-hidden="true" />
     </button>
   );
 
   /* ── Desktop dropdown ── */
   if (!isMobile) {
     return (
-      <div style={{ position: "relative", display: "inline-block" }} ref={ref}>
+      <div className="fd-sort" ref={ref}>
         {triggerButton}
         {open && (
-          <div className="fd-sort-dropdown">
+          <div className="fd-sort-dropdown" role="menu">
             {OPTIONS.map((option) => {
               const isActive = sortBy === option.value;
               return (
                 <button
                   key={option.value}
                   type="button"
+                  role="menuitemradio"
+                  aria-checked={isActive}
                   onClick={() => handleSelect(option.value)}
                   className={`fd-sort-option ${isActive ? "is-active" : ""}`}
                 >
@@ -116,7 +119,7 @@ export function SortDropdown({ sortBy, sortOrder, onChange }: SortDropdownProps)
 
       {open && (
         <div className="fd-sheet-veil" onClick={() => setOpen(false)}>
-          <div className="fd-sheet" onClick={(e) => e.stopPropagation()}>
+          <div className="fd-sheet" role="dialog" aria-modal="true" aria-label="Сортировка" onClick={(e) => e.stopPropagation()}>
             <div className="fd-sheet-handle" />
             <div className="fd-sheet-header">
               <span className="fd-sheet-title">Сортировка</span>
@@ -128,6 +131,7 @@ export function SortDropdown({ sortBy, sortOrder, onChange }: SortDropdownProps)
                   <button
                     key={option.value}
                     type="button"
+                    aria-pressed={isActive}
                     onClick={() => handleSelect(option.value)}
                     className={`fd-sheet-option ${isActive ? "is-active" : ""}`}
                   >

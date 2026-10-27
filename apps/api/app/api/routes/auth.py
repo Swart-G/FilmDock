@@ -1,9 +1,9 @@
 from fastapi import APIRouter, HTTPException, status
 
 from app.core.config import settings
-from app.core.security import create_access_token, create_refresh_token, hash_password, verify_password
+from app.core.security import create_access_token, create_refresh_token, hash_password, password_needs_rehash, verify_password
 from app.schemas.auth import AuthUserOut, LoginIn, RefreshIn, TokenPairOut
-from app.repositories import consume_refresh_token, create_user, get_user_by_username, persist_refresh_token
+from app.repositories import consume_refresh_token, create_user, get_user_by_username, persist_refresh_token, update_user_password_hash
 from app.services.jellyfin_account import (
     JellyfinAccountConfigurationError,
     JellyfinAccountConflictError,
@@ -37,6 +37,8 @@ def login(payload: LoginIn) -> TokenPairOut:
     user = get_user_by_username(payload.username)
     if user is None or not verify_password(payload.password, str(user["password_hash"])):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid username or password")
+    if password_needs_rehash(str(user["password_hash"])):
+        update_user_password_hash(str(user["id"]), hash_password(payload.password))
     return build_token_pair(user)
 
 

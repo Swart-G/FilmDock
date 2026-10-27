@@ -1,6 +1,9 @@
-import { Search } from "lucide-react";
-import { useMemo, useState } from "react";
-import type { CSSProperties, FormEvent } from "react";
+import { Magnet, Search } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { FormEvent } from "react";
+
+import { Modal } from "../../components/Modal";
+import { providerLabel } from "../../lib/format";
 
 import { SortDropdown } from "./components/SortDropdown";
 import { TorrentResultCard } from "./components/TorrentResultCard";
@@ -14,7 +17,7 @@ type HomePageProps = {
   addState: TorrentAddState;
   onQueryInputChange: (value: string) => void;
   onMagnetInputChange: (value: string) => void;
-  onSearch: () => void; onAddByMagnet: () => void;
+  onSearch: () => void; onAddByMagnet: () => Promise<boolean>;
   onResolutionChange: (value: string) => void;
   onDubChange: (value: string) => void;
   onSubtitlesChange: (value: string) => void;
@@ -43,95 +46,86 @@ function languageTokens(values: Array<string | null | undefined>) {
   return Array.from(set).sort((l, r) => l.localeCompare(r, "ru-RU"));
 }
 
-const PROVIDER_LABELS: Record<string, string> = {
-  "apibay.org": "TPB",
-  "rutracker.org": "RuTracker",
-  "rutracker.ru": "RuTracker.RU",
-  "rutor.info": "RuTor",
-  "rutor.is": "RuTor",
-  "kinozal.me": "Kinozal",
-  "kinozal.tv": "Kinozal",
-  "nnmclub.to": "NNM-Club",
-  "nyaa.si": "Nyaa",
-  "yts.lt": "YTS",
-  "animetosho": "AnimeTosho",
-};
-
-function providerLabel(provider: string): string {
-  return PROVIDER_LABELS[provider.toLowerCase()] ?? provider;
-}
-
 // ─── Magnet Modal ─────────────────────────────────────────────────────────
 
 function MagnetModal({ open, onClose, magnetInput, onMagnetInputChange, onSubmit }: {
   open: boolean; onClose: () => void;
   magnetInput: string; onMagnetInputChange: (v: string) => void;
-  onSubmit: () => void;
+  onSubmit: () => Promise<boolean>;
 }) {
-  if (!open) return null;
-  const valid = magnetInput.toLowerCase().startsWith("magnet:?");
-  const handleSubmit = (e: FormEvent) => {
-    e.preventDefault();
-    if (!valid) return;
-    onSubmit();
-    onClose();
+  const [submitting, setSubmitting] = useState(false);
+  const valid = magnetInput.trim().toLowerCase().startsWith("magnet:?");
+  const handleSubmit = async () => {
+    if (!valid || submitting) return;
+    setSubmitting(true);
+    try {
+      // Keep the dialog open on failure so the link is not lost.
+      if (await onSubmit()) onClose();
+    } finally {
+      setSubmitting(false);
+    }
   };
   return (
-    <div className="fd-modal-veil" onClick={onClose}>
-      <form className="fd-modal" onClick={e => e.stopPropagation()} onSubmit={handleSubmit}>
-        <header className="fd-modal-h">
-          <div>
-            <h3>Magnet-ссылка</h3>
-            <p>Вставьте magnet: URI прямо из вашего трекера</p>
-          </div>
-          <button type="button" className="fd-icon-btn" onClick={onClose} aria-label="Закрыть">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
-              <path d="m6 6 12 12M18 6 6 18" />
-            </svg>
-          </button>
-        </header>
-        <textarea
-          autoFocus
-          value={magnetInput}
-          onChange={e => onMagnetInputChange(e.target.value)}
-          placeholder="magnet:?xt=urn:btih:…"
-          rows={5}
-          className="fd-modal-input"
-        />
-        <footer className="fd-modal-f">
-          <div className="fd-modal-hint">
+    <Modal
+      open={open}
+      title="Magnet-ссылка"
+      description="Вставьте magnet: URI прямо из вашего трекера"
+      onClose={onClose}
+      onSubmit={handleSubmit}
+      footer={
+        <>
+          <div className="fd-modal-hint" aria-live="polite">
             {magnetInput && !valid && <span className="fd-warn-text">Ссылка должна начинаться с magnet:?</span>}
             {valid && <span className="fd-ok-text">Готово к добавлению</span>}
           </div>
           <div className="fd-modal-actions">
             <button type="button" className="fd-btn-ghost" onClick={onClose}>Отмена</button>
-            <button type="submit" className="fd-btn-primary" disabled={!valid}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
-                <path d="M6 15a6 6 0 0 0 12 0V4h-4v11a2 2 0 0 1-4 0V4H6Z" />
-                <path d="M6 8h4M14 8h4" />
-              </svg>
+            <button type="submit" className="fd-btn-primary" disabled={!valid || submitting}>
+              {submitting ? <span className="fd-spinner" /> : <Magnet size={16} />}
               Добавить
             </button>
           </div>
-        </footer>
-      </form>
-    </div>
+        </>
+      }
+    >
+      <textarea
+        autoFocus
+        value={magnetInput}
+        onChange={e => onMagnetInputChange(e.target.value)}
+        placeholder="magnet:?xt=urn:btih:…"
+        aria-label="Magnet-ссылка"
+        rows={5}
+        className="fd-modal-input"
+        spellCheck={false}
+      />
+    </Modal>
   );
 }
 
 // ─── FilterChips ──────────────────────────────────────────────────────────
 
-function FilterChips<T extends string>({ items, value, onChange }: { items: { value: T; label: string }[]; value: T; onChange: (v: T) => void }) {
+function FilterChips<T extends string>({ label, items, value, onChange }: { label: string; items: { value: T; label: string }[]; value: T; onChange: (v: T) => void }) {
   return (
-    <div className="fd-chips">
-      {items.map(it => (
-        <button key={it.value} type="button" className={`fd-chip ${value === it.value ? "is-on" : ""}`} onClick={() => onChange(it.value)}>
-          {it.label}
-        </button>
-      ))}
+    <div className="fd-filter-group" role="group" aria-label={label}>
+      <span className="fd-filter-label" aria-hidden="true">{label}</span>
+      <div className="fd-chips">
+        {items.map(it => (
+          <button key={it.value} type="button" aria-pressed={value === it.value} className={`fd-chip ${value === it.value ? "is-on" : ""}`} onClick={() => onChange(it.value)}>
+            {it.label}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
+
+const RESOLUTION_CHIP_ITEMS = [
+  { value: "", label: "Любое" },
+  { value: "2160p", label: "4K" },
+  { value: "1080p", label: "1080p" },
+  { value: "720p",  label: "720p" },
+  { value: "480p",  label: "480p" },
+];
 
 // ─── HomePage ─────────────────────────────────────────────────────────────
 
@@ -145,13 +139,21 @@ export function HomePage(props: HomePageProps) {
   } = props;
 
   const [magnetOpen, setMagnetOpen] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 
-  const resolutionOptions = useMemo(() => {
-    const defaults = ["2160p", "1080p", "720p", "480p"];
-    const detected = new Set<string>(defaults);
-    for (const item of results) { if (item.resolution) detected.add(item.resolution); }
-    return [{ value: "", label: "Любое" }, ...Array.from(detected).map(value => ({ value, label: value }))];
-  }, [results]);
+  // Ctrl/⌘+K focuses the search field.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        searchInputRef.current?.focus();
+        searchInputRef.current?.select();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   const dubOptions = useMemo(() => {
     const detected = languageTokens(results.map(item => item.dub));
@@ -205,14 +207,6 @@ export function HomePage(props: HomePageProps) {
     onSearch();
   };
 
-  const RESOLUTION_CHIP_ITEMS = [
-    { value: "", label: "Любое" },
-    { value: "2160p", label: "4K" },
-    { value: "1080p", label: "1080p" },
-    { value: "720p",  label: "720p" },
-    { value: "480p",  label: "480p" },
-  ];
-
   return (
     <div className="fd-screen fd-screen-search">
       <header className="fd-search-hero">
@@ -227,63 +221,50 @@ export function HomePage(props: HomePageProps) {
 
         <form onSubmit={submitSearch}>
           <div className="fd-search-bar">
-            <Search size={20} style={{ opacity: 0.55, flexShrink: 0 }} />
+            <Search size={20} className="fd-search-icon" aria-hidden="true" />
             <input
+              ref={searchInputRef}
+              type="search"
+              aria-label="Поиск торрентов"
+              enterKeyHint="search"
               value={queryInput}
               onChange={e => onQueryInputChange(e.target.value)}
               placeholder="Название фильма, сериала или релиз-группы"
             />
-            <div className="fd-search-kbd">⌘K</div>
-            <button type="submit" className="fd-search-go">Искать</button>
+            <kbd className="fd-search-kbd" aria-hidden="true">{isMac ? "⌘K" : "Ctrl K"}</kbd>
+            <button type="submit" className="fd-search-go" disabled={loading}>
+              {loading ? <span className="fd-spinner" /> : null}
+              Искать
+            </button>
           </div>
         </form>
 
         <div className="fd-filters">
-          <div className="fd-filter-group">
-            <label>Качество</label>
-            <FilterChips items={RESOLUTION_CHIP_ITEMS} value={resolution} onChange={onResolutionChange} />
-          </div>
+          <FilterChips label="Качество" items={RESOLUTION_CHIP_ITEMS} value={resolution} onChange={onResolutionChange} />
           {dubOptions.length > 1 && (
-            <div className="fd-filter-group">
-              <label>Озвучка</label>
-              <div className="fd-chips">
-                {dubOptions.slice(0, 6).map(it => (
-                  <button key={it.value} type="button" className={`fd-chip ${dub === it.value ? "is-on" : ""}`} onClick={() => onDubChange(it.value)}>
-                    {it.label}
-                  </button>
-                ))}
-              </div>
-            </div>
+            <FilterChips label="Озвучка" items={dubOptions} value={dub} onChange={onDubChange} />
           )}
           {subtitleOptions.length > 1 && (
-            <div className="fd-filter-group">
-              <label>Субтитры</label>
-              <div className="fd-chips">
-                {subtitleOptions.slice(0, 5).map(it => (
-                  <button key={it.value} type="button" className={`fd-chip ${subtitles === it.value ? "is-on" : ""}`} onClick={() => onSubtitlesChange(it.value)}>
-                    {it.label}
-                  </button>
-                ))}
-              </div>
-            </div>
+            <FilterChips label="Субтитры" items={subtitleOptions} value={subtitles} onChange={onSubtitlesChange} />
           )}
           <div className="fd-filter-spacer" />
           <div className="fd-filter-group">
-            <label>Сортировка</label>
+            <span className="fd-filter-label">Сортировка</span>
             <SortDropdown sortBy={sortBy} sortOrder={sortOrder} onChange={onSortChange} />
           </div>
         </div>
       </header>
 
       <section className="fd-results">
+        {query && (
         <div className="fd-results-h">
           <h2>
             Найдено <strong>{sorted.length}</strong>
-            {query && <span> для «{query}»</span>}
+            <span> для «{query}»</span>
           </h2>
           {results.length > 0 && (
             <div className="fd-results-sub">
-              <span className="fd-pulse" />
+              <span className="fd-pulse" aria-hidden="true" />
               {results.length} раздач ·{" "}
               {Object.entries(providerCounts)
                 .sort((a, b) => b[1] - a[1])
@@ -293,11 +274,12 @@ export function HomePage(props: HomePageProps) {
             </div>
           )}
         </div>
+        )}
 
         {loading && (
           <div className="fd-empty">
             <div className="fd-empty-icon">
-              <span className="fd-spinner" style={{ width: 24, height: 24 } as CSSProperties} />
+              <span className="fd-spinner fd-spinner--lg" />
             </div>
             <h3>Ищем раздачи…</h3>
             <p>Опрашиваем трекеры</p>
@@ -333,11 +315,8 @@ export function HomePage(props: HomePageProps) {
         )}
       </section>
 
-      <button type="button" className="fd-fab" onClick={() => setMagnetOpen(true)} title="Добавить Magnet">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M6 15a6 6 0 0 0 12 0V4h-4v11a2 2 0 0 1-4 0V4H6Z" />
-          <path d="M6 8h4M14 8h4" />
-        </svg>
+      <button type="button" className="fd-fab" onClick={() => setMagnetOpen(true)} title="Добавить по magnet-ссылке">
+        <Magnet size={20} />
         <span>Magnet</span>
       </button>
 

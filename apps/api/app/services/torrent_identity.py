@@ -7,7 +7,14 @@ from urllib.parse import parse_qs, unquote_plus, urlparse
 
 class TorrentIdentityService:
     def normalize(self, info_hash: str) -> str:
-        return info_hash.strip().lower()
+        """Return a 40-char lowercase hex hash; raise ValueError otherwise.
+
+        The hash ends up in filesystem paths, so anything else must be rejected.
+        """
+        normalized = self._normalize_btih(info_hash)
+        if normalized is None:
+            raise ValueError("Invalid torrent info hash.")
+        return normalized
 
     def extract_info_hash_from_magnet(self, magnet_url: str | None) -> str | None:
         if not magnet_url:

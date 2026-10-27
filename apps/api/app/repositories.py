@@ -28,6 +28,11 @@ def get_user_by_id(user_id: str) -> dict[str, object] | None:
     return _to_dict(row)
 
 
+def update_user_password_hash(user_id: str, password_hash: str) -> None:
+    with db_cursor() as cursor:
+        cursor.execute("UPDATE users SET password_hash = ? WHERE id = ?", (password_hash, user_id))
+
+
 def create_user(username: str, password_hash: str, role: str = "user") -> dict[str, object]:
     user_id = uuid4().hex
     created_at = now_iso()

@@ -17,12 +17,32 @@ def _b64_decode(raw: str) -> bytes:
     return base64.urlsafe_b64decode(raw + padding)
 
 
-def hash_password(password: str) -> str:
+PBKDF2_ITERATIONS = 390_000
+
+
+def _legacy_hash_password(password: str) -> str:
     return hashlib.sha256(f"{settings.auth_secret}:{password}".encode()).hexdigest()
 
 
+def hash_password(password: str) -> str:
+    salt = token_urlsafe(16)
+    digest = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), PBKDF2_ITERATIONS).hex()
+    return f"pbkdf2_sha256${PBKDF2_ITERATIONS}${salt}${digest}"
+
+
 def verify_password(password: str, password_hash: str) -> bool:
-    return hmac.compare_digest(hash_password(password), password_hash)
+    if password_hash.startswith("pbkdf2_sha256$"):
+        try:
+            _, iterations, salt, expected = password_hash.split("$", 3)
+            digest = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), int(iterations)).hex()
+        except ValueError:
+            return False
+        return hmac.compare_digest(digest, expected)
+    return hmac.compare_digest(_legacy_hash_password(password), password_hash)
+
+
+def password_needs_rehash(password_hash: str) -> bool:
+    return not password_hash.startswith("pbkdf2_sha256$")
 
 
 def create_access_token(user_id: str, username: str, role: str) -> str:

@@ -69,7 +69,10 @@ def add_torrent(payload: AddTorrentIn, user=Depends(require_user)) -> AddTorrent
         info_hash = identity_service.derive_fallback_hash(payload.download_url)
     if not info_hash:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Unable to resolve torrent info hash.")
-    normalized_info_hash = identity_service.normalize(info_hash)
+    try:
+        normalized_info_hash = identity_service.normalize(info_hash)
+    except ValueError as error:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(error)) from error
 
     media = get_media_detail(payload.media_item_id) if payload.media_item_id else None
     media_type = str(media["type"]) if media is not None else payload.media_type

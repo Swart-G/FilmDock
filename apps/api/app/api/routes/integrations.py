@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 
-from app.dependencies import require_user
+from app.dependencies import require_admin
 from app.schemas.integrations import JellyfinIntegrationStatusOut, QBittorrentSessionOut
 from app.services.jellyfin_client import JellyfinClient
 from app.services.qbittorrent_client import QBittorrentClient
@@ -16,7 +16,7 @@ def jellyfin_status() -> JellyfinIntegrationStatusOut:
 
 
 @router.post("/qbittorrent/session", response_model=QBittorrentSessionOut)
-def qbittorrent_session(response: Response, _user=Depends(require_user)) -> QBittorrentSessionOut:
+def qbittorrent_session(response: Response, _user=Depends(require_admin)) -> QBittorrentSessionOut:
     try:
         sid = qbittorrent_client.create_webui_session()
     except RuntimeError as error:

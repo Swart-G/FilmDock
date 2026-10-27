@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Path, status
 
 from app.dependencies import require_user
 from app.repositories import get_torrent, public_torrents, update_torrent_visibility, user_owned_torrents, user_visible_assets
@@ -13,6 +13,7 @@ from app.schemas.library import (
 from app.services.torrent_pipeline import TorrentPipelineService
 
 router = APIRouter()
+InfoHash = Path(pattern=r"^[0-9a-fA-F]{40}$")
 pipeline_service = TorrentPipelineService()
 
 def _to_torrent_payload(entry: dict[str, object]) -> dict[str, object]:
@@ -46,7 +47,7 @@ def public_library_torrents(user=Depends(require_user)) -> list[PublicLibraryTor
 
 
 @router.post("/torrents/{info_hash}/watch", response_model=LibraryTorrentWatchOut)
-def watch_torrent(info_hash: str, user=Depends(require_user)) -> LibraryTorrentWatchOut:
+def watch_torrent(info_hash: str = InfoHash, user=Depends(require_user)) -> LibraryTorrentWatchOut:
     torrent = get_torrent(info_hash)
     if torrent is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Torrent not found")
@@ -93,7 +94,7 @@ def watch_torrent(info_hash: str, user=Depends(require_user)) -> LibraryTorrentW
 
 
 @router.delete("/torrents/{info_hash}", response_model=LibraryTorrentDeleteOut)
-def remove_torrent(info_hash: str, user=Depends(require_user)) -> LibraryTorrentDeleteOut:
+def remove_torrent(info_hash: str = InfoHash, user=Depends(require_user)) -> LibraryTorrentDeleteOut:
     try:
         removal = pipeline_service.remove_torrent(user_id=str(user["id"]), info_hash=info_hash)
     except RuntimeError as error:
@@ -115,7 +116,7 @@ def remove_torrent(info_hash: str, user=Depends(require_user)) -> LibraryTorrent
 
 
 @router.post("/torrents/{info_hash}/visibility", response_model=LibraryTorrentVisibilityOut)
-def toggle_visibility(info_hash: str, user=Depends(require_user)) -> LibraryTorrentVisibilityOut:
+def toggle_visibility(info_hash: str = InfoHash, user=Depends(require_user)) -> LibraryTorrentVisibilityOut:
     torrent = update_torrent_visibility(info_hash, str(user["id"]))
     if torrent is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Torrent not found")

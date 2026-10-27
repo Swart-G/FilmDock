@@ -1,6 +1,7 @@
 import { Check, Download } from "lucide-react";
 import type { CSSProperties } from "react";
 
+import { hashHue, providerLabel, staggerDelay } from "../../../lib/format";
 import type { TorrentResult } from "../types";
 
 type TorrentResultCardProps = {
@@ -10,43 +11,19 @@ type TorrentResultCardProps = {
   onAdd: (item: TorrentResult) => void;
 };
 
-function hashHue(str: string): number {
-  let h = 0;
-  for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) | 0;
-  return Math.abs(h) % 360;
-}
-
-const PROVIDER_LABELS: Record<string, string> = {
-  "apibay.org": "TPB",
-  "rutracker.org": "RuTracker",
-  "rutracker.ru": "RuTracker.RU",
-  "rutor.info": "RuTor",
-  "rutor.is": "RuTor",
-  "kinozal.me": "Kinozal",
-  "kinozal.tv": "Kinozal",
-  "nnmclub.to": "NNM-Club",
-  "nyaa.si": "Nyaa",
-  "yts.lt": "YTS",
-  "animetosho": "AnimeTosho",
-};
-
-function providerLabel(provider: string): string {
-  return PROVIDER_LABELS[provider.toLowerCase()] ?? provider;
-}
-
 function SeedersBar({ seeders, leechers }: { seeders: number; leechers: number }) {
   const tone = seeders > 500 ? "high" : seeders > 50 ? "mid" : "low";
   return (
-    <div className={`fd-sl fd-sl-${tone}`}>
+    <div className={`fd-sl fd-sl-${tone}`} aria-label={`Сиды ${seeders}, пиры ${leechers}`}>
       <span className="fd-sl-up">
-        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.6">
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
           <path d="M5 8V2M2 5l3-3 3 3" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
         {seeders.toLocaleString("ru-RU")}
       </span>
       <span className="fd-sl-sep" />
       <span className="fd-sl-dn">
-        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.6">
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
           <path d="M5 2v6M2 5l3 3 3-3" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
         {leechers}
@@ -79,13 +56,13 @@ export function TorrentResultCard({ item, index = 0, addState, onAdd }: TorrentR
   return (
     <article
       className="fd-card"
-      style={{ "--h": hue, animationDelay: `${index * 28}ms` } as CSSProperties}
+      style={{ "--h": hue, animationDelay: staggerDelay(index, 28) } as CSSProperties}
     >
       <div className="fd-card-bg" aria-hidden="true" />
 
       <header className="fd-card-h">
         <div className="fd-card-title">
-          <h3>{item.title}</h3>
+          <h3 title={item.title}>{item.title}</h3>
           <div className="fd-card-sub">
             <span className="fd-mono">{providerLabel(item.provider)}</span>
             {dateStr && <><span className="fd-dot-sep" /><span>{dateStr}</span></>}
@@ -125,7 +102,8 @@ export function TorrentResultCard({ item, index = 0, addState, onAdd }: TorrentR
         type="button"
         className={`fd-add ${adding ? "is-loading" : ""} ${added ? "is-done" : ""}`}
         onClick={() => onAdd(item)}
-        disabled={added}
+        disabled={added || adding}
+        aria-busy={adding}
       >
         {added ? (
           <><Check size={16} />В очереди</>

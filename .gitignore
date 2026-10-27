@@ -25,3 +25,14 @@ qbittorrent/
 
 # Local Codex
 .codex/
+
+# Frontend build / tooling artefacts
+*.tsbuildinfo
+.playwright-cli/
+apps/frontend/output/
+
+# Local archives and runtime media
+*.zip
+media/
+.claude/
+.codex
