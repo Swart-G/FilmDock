@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import type { FormEvent, KeyboardEvent, ReactNode } from "react";
 import { X } from "lucide-react";
 
-import { useEscapeKey } from "../hooks/useDismissibleLayer";
+import { useEscapeKey } from "../hooks/useEscapeKey";
 
 type ModalProps = {
   open: boolean;

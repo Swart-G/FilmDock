@@ -1,19 +1,21 @@
 import type { AnyLibraryTorrent } from "./types";
 
 export function formatBytes(value: number | null) {
-  if (!value) return "n/a";
-  const gb = value / 1024 / 1024 / 1024;
-  return `${gb.toFixed(gb > 10 ? 0 : 1)} GB`;
+  if (!value) return "—";
+  const gb = value / 1024 ** 3;
+  if (gb >= 1) return `${gb.toLocaleString("ru-RU", { maximumFractionDigits: gb >= 10 ? 0 : 1 })} ГБ`;
+  const mb = value / 1024 ** 2;
+  return `${mb.toLocaleString("ru-RU", { maximumFractionDigits: 0 })} МБ`;
 }
 
 export function formatDownloadSpeed(bytesPerSecond: number | null) {
-  if (bytesPerSecond === null || bytesPerSecond < 0) return "n/a";
-  const units = ["B/s", "KB/s", "MB/s", "GB/s"];
+  if (bytesPerSecond === null || bytesPerSecond < 0) return "—";
+  const units = ["Б/с", "КБ/с", "МБ/с", "ГБ/с"];
   let value = bytesPerSecond;
   let unitIndex = 0;
   while (value >= 1024 && unitIndex < units.length - 1) { value /= 1024; unitIndex++; }
-  const digits = value >= 100 || unitIndex === 0 ? 0 : value >= 10 ? 1 : 2;
-  return `${value.toFixed(digits)} ${units[unitIndex]}`;
+  const digits = value >= 100 || unitIndex === 0 ? 0 : 1;
+  return `${value.toLocaleString("ru-RU", { maximumFractionDigits: digits })} ${units[unitIndex]}`;
 }
 
 export function formatAggregateDownloadSpeed(items: AnyLibraryTorrent[]) {
@@ -22,18 +24,16 @@ export function formatAggregateDownloadSpeed(items: AnyLibraryTorrent[]) {
 }
 
 export function formatEta(seconds: number | null) {
-  if (seconds === null || seconds < 0) return "n/a";
-  if (seconds === 0) return "0s";
+  if (seconds === null || seconds < 0 || seconds >= 8_640_000) return "—";
   const total = Math.floor(seconds);
   const days = Math.floor(total / 86_400);
   const hours = Math.floor((total % 86_400) / 3_600);
   const minutes = Math.floor((total % 3_600) / 60);
-  const secs = total % 60;
   const parts: string[] = [];
-  if (days > 0) parts.push(`${days}d`);
-  if (hours > 0) parts.push(`${hours}h`);
-  if (minutes > 0 && parts.length < 2) parts.push(`${minutes}m`);
-  if (parts.length === 0) parts.push(`${secs}s`);
+  if (days > 0) parts.push(`${days} д`);
+  if (hours > 0) parts.push(`${hours} ч`);
+  if (minutes > 0 && parts.length < 2) parts.push(`${minutes} мин`);
+  if (parts.length === 0) parts.push(total === 0 ? "0 с" : "< 1 мин");
   return parts.slice(0, 2).join(" ");
 }
 
@@ -111,17 +111,6 @@ export function torrentStateTone(state: string): StateTone {
   return "neutral";
 }
 
-export function hashHue(str: string): number {
-  let h = 0;
-  for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) | 0;
-  return Math.abs(h) % 360;
-}
-
-/** Entry animation delay, capped so long lists do not take seconds to appear. */
-export function staggerDelay(index: number, stepMs: number) {
-  return `${Math.min(index, 12) * stepMs}ms`;
-}
-
 export function magnetDisplayName(magnetUrl: string): string | null {
   try {
     const query = magnetUrl.includes("?") ? magnetUrl.slice(magnetUrl.indexOf("?") + 1) : "";
@@ -152,4 +141,10 @@ const PROVIDER_LABELS: Record<string, string> = {
 
 export function providerLabel(provider: string): string {
   return PROVIDER_LABELS[provider.toLowerCase()] ?? provider;
+}
+
+/** Provider sizes arrive as "3.4 GB"; show them the way the rest of the UI does ("3,4 ГБ"). */
+export function localizeSize(size: string) {
+  const units: Record<string, string> = { TB: "ТБ", TIB: "ТБ", GB: "ГБ", GIB: "ГБ", MB: "МБ", MIB: "МБ", KB: "КБ", KIB: "КБ", B: "Б" };
+  return size.replace(/(\d+)\.(\d+)/, "$1,$2").replace(/\b(TiB|TB|GiB|GB|MiB|MB|KiB|KB|B)\b/i, unit => units[unit.toUpperCase()] ?? unit);
 }

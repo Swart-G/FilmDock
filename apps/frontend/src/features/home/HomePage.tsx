@@ -1,11 +1,10 @@
-import { Magnet, Search } from "lucide-react";
+import { ArrowDown, ArrowUp, Magnet, Search } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 
 import { Modal } from "../../components/Modal";
-import { providerLabel } from "../../lib/format";
+import { plural, providerLabel } from "../../lib/format";
 
-import { SortDropdown } from "./components/SortDropdown";
 import { TorrentResultCard } from "./components/TorrentResultCard";
 import type { TorrentAddState, TorrentResult, TorrentSortBy, TorrentSortOrder } from "./types";
 
@@ -102,29 +101,36 @@ function MagnetModal({ open, onClose, magnetInput, onMagnetInputChange, onSubmit
   );
 }
 
-// ─── FilterChips ──────────────────────────────────────────────────────────
+// ─── Filters ──────────────────────────────────────────────────────────────
 
-function FilterChips<T extends string>({ label, items, value, onChange }: { label: string; items: { value: T; label: string }[]; value: T; onChange: (v: T) => void }) {
+type Option = { value: string; label: string };
+
+function SelectField({ label, value, options, onChange, disabled }: { label: string; value: string; options: Option[]; onChange: (v: string) => void; disabled?: boolean }) {
   return (
-    <div className="fd-filter-group" role="group" aria-label={label}>
-      <span className="fd-filter-label" aria-hidden="true">{label}</span>
-      <div className="fd-chips">
-        {items.map(it => (
-          <button key={it.value} type="button" aria-pressed={value === it.value} className={`fd-chip ${value === it.value ? "is-on" : ""}`} onClick={() => onChange(it.value)}>
-            {it.label}
-          </button>
-        ))}
-      </div>
-    </div>
+    <label className="fd-field">
+      <span>{label}</span>
+      <select className="fd-select" value={value} disabled={disabled} onChange={e => onChange(e.target.value)}>
+        {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+      </select>
+    </label>
   );
 }
 
-const RESOLUTION_CHIP_ITEMS = [
+const RESOLUTION_OPTIONS: Option[] = [
   { value: "", label: "Любое" },
   { value: "2160p", label: "4K" },
   { value: "1080p", label: "1080p" },
   { value: "720p",  label: "720p" },
   { value: "480p",  label: "480p" },
+];
+
+const SORT_OPTIONS: Array<{ value: TorrentSortBy; label: string }> = [
+  { value: "relevance", label: "По релевантности" },
+  { value: "seeders",   label: "По сидам" },
+  { value: "leechers",  label: "По пирам" },
+  { value: "quality",   label: "По качеству" },
+  { value: "date",      label: "По дате" },
+  { value: "size",      label: "По размеру" },
 ];
 
 // ─── HomePage ─────────────────────────────────────────────────────────────
@@ -140,7 +146,6 @@ export function HomePage(props: HomePageProps) {
 
   const [magnetOpen, setMagnetOpen] = useState(false);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
-  const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 
   // Ctrl/⌘+K focuses the search field.
   useEffect(() => {
@@ -155,22 +160,21 @@ export function HomePage(props: HomePageProps) {
     return () => document.removeEventListener("keydown", onKeyDown);
   }, []);
 
-  const dubOptions = useMemo(() => {
-    const detected = languageTokens(results.map(item => item.dub));
-    return [{ value: "", label: "Любая" }, ...detected.map(value => ({ value, label: value }))];
-  }, [results]);
+  const dubOptions = useMemo<Option[]>(() => [
+    { value: "", label: "Любая" },
+    ...languageTokens(results.map(item => item.dub)).map(value => ({ value, label: value })),
+  ], [results]);
 
-  const subtitleOptions = useMemo(() => {
-    const detected = languageTokens(results.map(item => item.subtitles));
-    return [{ value: "", label: "Любые" }, ...detected.map(value => ({ value, label: value }))];
-  }, [results]);
+  const subtitleOptions = useMemo<Option[]>(() => [
+    { value: "", label: "Любые" },
+    ...languageTokens(results.map(item => item.subtitles)).map(value => ({ value, label: value })),
+  ], [results]);
 
-  const providerCounts = useMemo(() => {
+  const providerSummary = useMemo(() => {
     const counts: Record<string, number> = {};
-    for (const item of results) {
-      counts[item.provider] = (counts[item.provider] ?? 0) + 1;
-    }
-    return counts;
+    for (const item of results) counts[item.provider] = (counts[item.provider] ?? 0) + 1;
+    return Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 5)
+      .map(([p, count]) => `${providerLabel(p)} ${count}`).join(" · ");
   }, [results]);
 
   const sorted = useMemo(() => {
@@ -207,118 +211,100 @@ export function HomePage(props: HomePageProps) {
     onSearch();
   };
 
-  return (
-    <div className="fd-screen fd-screen-search">
-      <header className="fd-search-hero">
-        <div className="fd-eyebrow">
-          <span className="fd-eyebrow-dot" />
-          Новая загрузка
-        </div>
-        <h1 className="fd-h1">
-          Найдите что-то новое<br />
-          <span className="fd-h1-soft">для своей медиатеки</span>
-        </h1>
+  const orderLabel = sortOrder === "desc" ? "По убыванию" : "По возрастанию";
 
-        <form onSubmit={submitSearch}>
-          <div className="fd-search-bar">
-            <Search size={20} className="fd-search-icon" aria-hidden="true" />
-            <input
-              ref={searchInputRef}
-              type="search"
-              aria-label="Поиск торрентов"
-              enterKeyHint="search"
-              value={queryInput}
-              onChange={e => onQueryInputChange(e.target.value)}
-              placeholder="Название фильма, сериала или релиз-группы"
-            />
-            <kbd className="fd-search-kbd" aria-hidden="true">{isMac ? "⌘K" : "Ctrl K"}</kbd>
-            <button type="submit" className="fd-search-go" disabled={loading}>
-              {loading ? <span className="fd-spinner" /> : null}
-              Искать
+  return (
+    <div className="fd-page">
+      <header className="fd-page-h"><h1>Поиск</h1></header>
+
+      <form className="fd-search" onSubmit={submitSearch} role="search">
+        <div className="fd-search-field">
+          <Search size={18} aria-hidden="true" />
+          <input
+            ref={searchInputRef}
+            type="search"
+            aria-label="Поиск раздач"
+            enterKeyHint="search"
+            value={queryInput}
+            onChange={e => onQueryInputChange(e.target.value)}
+            placeholder="Фильм или сериал"
+          />
+        </div>
+        <button type="submit" className="fd-btn-primary" disabled={loading}>
+          {loading && <span className="fd-spinner" />}
+          Искать
+        </button>
+        <button type="button" className="fd-btn-ghost fd-search-magnet" onClick={() => setMagnetOpen(true)} aria-label="Добавить по magnet-ссылке" title="Добавить по magnet-ссылке">
+          <Magnet size={16} />
+          <span>Magnet</span>
+        </button>
+      </form>
+
+      <div className="fd-filters">
+        <SelectField label="Качество" value={resolution} options={RESOLUTION_OPTIONS} onChange={onResolutionChange} />
+        <SelectField label="Озвучка" value={dub} options={dubOptions} onChange={onDubChange} disabled={dubOptions.length < 2} />
+        <SelectField label="Субтитры" value={subtitles} options={subtitleOptions} onChange={onSubtitlesChange} disabled={subtitleOptions.length < 2} />
+        <div className="fd-field">
+          <span>Сортировка</span>
+          <div className="fd-field-row">
+            <select className="fd-select" aria-label="Сортировка" value={sortBy}
+              onChange={e => { const v = e.target.value as TorrentSortBy; onSortChange(v, v === "relevance" ? "desc" : sortOrder); }}>
+              {SORT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+            <button type="button" className="fd-icon-btn" disabled={sortBy === "relevance"}
+              onClick={() => onSortChange(sortBy, sortOrder === "desc" ? "asc" : "desc")}
+              title={orderLabel} aria-label={`Порядок: ${orderLabel}`}>
+              {sortOrder === "desc" ? <ArrowDown size={16} /> : <ArrowUp size={16} />}
             </button>
           </div>
-        </form>
-
-        <div className="fd-filters">
-          <FilterChips label="Качество" items={RESOLUTION_CHIP_ITEMS} value={resolution} onChange={onResolutionChange} />
-          {dubOptions.length > 1 && (
-            <FilterChips label="Озвучка" items={dubOptions} value={dub} onChange={onDubChange} />
-          )}
-          {subtitleOptions.length > 1 && (
-            <FilterChips label="Субтитры" items={subtitleOptions} value={subtitles} onChange={onSubtitlesChange} />
-          )}
-          <div className="fd-filter-spacer" />
-          <div className="fd-filter-group">
-            <span className="fd-filter-label">Сортировка</span>
-            <SortDropdown sortBy={sortBy} sortOrder={sortOrder} onChange={onSortChange} />
-          </div>
         </div>
-      </header>
+      </div>
 
-      <section className="fd-results">
-        {query && (
-        <div className="fd-results-h">
-          <h2>
-            Найдено <strong>{sorted.length}</strong>
-            <span> для «{query}»</span>
-          </h2>
-          {results.length > 0 && (
-            <div className="fd-results-sub">
-              <span className="fd-pulse" aria-hidden="true" />
-              {results.length} раздач ·{" "}
-              {Object.entries(providerCounts)
-                .sort((a, b) => b[1] - a[1])
-                .slice(0, 5)
-                .map(([p, count]) => `${providerLabel(p)}: ${count}`)
-                .join(" · ")}
-            </div>
-          )}
-        </div>
-        )}
+      <section className="fd-results" aria-live="polite" aria-busy={loading}>
+        {loading && <p className="fd-state"><span className="fd-spinner" />Ищем раздачи…</p>}
 
-        {loading && (
-          <div className="fd-empty">
-            <div className="fd-empty-icon">
-              <span className="fd-spinner fd-spinner--lg" />
-            </div>
-            <h3>Ищем раздачи…</h3>
-            <p>Опрашиваем трекеры</p>
-          </div>
-        )}
         {!loading && error && (
-          <div className="fd-empty">
-            <div className="fd-empty-icon"><Search size={28} /></div>
-            <h3>Ошибка поиска</h3>
-            <p>{error}</p>
-          </div>
-        )}
-        {!loading && !error && sorted.length === 0 && (
-          <div className="fd-empty">
-            <div className="fd-empty-icon"><Search size={28} /></div>
-            <h3>{query ? "Ничего не нашлось" : "Введите запрос"}</h3>
-            <p>{query ? "Попробуйте другие фильтры или вставьте magnet-ссылку" : "Введите минимум 2 символа и нажмите «Искать»"}</p>
+          <div className="fd-state fd-state--block">
+            <strong>Не удалось выполнить поиск</strong>
+            <span>{error}</span>
+            <button type="button" className="fd-btn-ghost" onClick={onSearch}>Повторить</button>
           </div>
         )}
 
-        {!loading && sorted.length > 0 && (
-          <div className="fd-results-grid">
-            {sorted.map((item, i) => (
-              <TorrentResultCard
-                key={item.info_hash}
-                item={item}
-                index={i}
-                addState={addState[item.info_hash] ?? "idle"}
-                onAdd={onAdd}
-              />
-            ))}
+        {!loading && !error && !query && (
+          <div className="fd-state fd-state--block">
+            <strong>Введите запрос</strong>
+            <span>Минимум 2 символа. Результаты собираются из нескольких трекеров.</span>
           </div>
+        )}
+
+        {!loading && !error && query && sorted.length === 0 && (
+          <div className="fd-state fd-state--block">
+            <strong>Ничего не нашлось</strong>
+            <span>{results.length > 0 ? "Попробуйте сбросить фильтры." : "Попробуйте другой запрос или вставьте magnet-ссылку."}</span>
+          </div>
+        )}
+
+        {!loading && !error && sorted.length > 0 && (
+          <>
+            <div className="fd-section-h">
+              <h2>
+                {sorted.length} {plural(sorted.length, ["раздача", "раздачи", "раздач"])}
+                <span className="fd-muted"> по запросу «{query}»</span>
+              </h2>
+              <span className="fd-page-note">{providerSummary}</span>
+            </div>
+            <ul className="fd-results-list">
+              <li className="fd-results-head" aria-hidden="true">
+                <span>Раздача</span><span className="fd-result-stats"><span>Размер</span><span>Сиды / пиры</span></span><span />
+              </li>
+              {sorted.map(item => (
+                <TorrentResultCard key={item.info_hash} item={item} addState={addState[item.info_hash] ?? "idle"} onAdd={onAdd} />
+              ))}
+            </ul>
+          </>
         )}
       </section>
-
-      <button type="button" className="fd-fab" onClick={() => setMagnetOpen(true)} title="Добавить по magnet-ссылке">
-        <Magnet size={20} />
-        <span>Magnet</span>
-      </button>
 
       <MagnetModal
         open={magnetOpen}

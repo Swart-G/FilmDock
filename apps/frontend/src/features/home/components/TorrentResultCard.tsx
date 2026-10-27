@@ -1,118 +1,69 @@
-import { Check, Download } from "lucide-react";
-import type { CSSProperties } from "react";
+import { ArrowDown, ArrowUp, Check, Download } from "lucide-react";
 
-import { hashHue, providerLabel, staggerDelay } from "../../../lib/format";
+import { Fragment } from "react";
+
+import { localizeSize, providerLabel } from "../../../lib/format";
 import type { TorrentResult } from "../types";
 
 type TorrentResultCardProps = {
   item: TorrentResult;
-  index?: number;
   addState: "idle" | "loading" | "done" | "error";
   onAdd: (item: TorrentResult) => void;
 };
 
-function SeedersBar({ seeders, leechers }: { seeders: number; leechers: number }) {
-  const tone = seeders > 500 ? "high" : seeders > 50 ? "mid" : "low";
-  return (
-    <div className={`fd-sl fd-sl-${tone}`} aria-label={`Сиды ${seeders}, пиры ${leechers}`}>
-      <span className="fd-sl-up">
-        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
-          <path d="M5 8V2M2 5l3-3 3 3" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-        {seeders.toLocaleString("ru-RU")}
-      </span>
-      <span className="fd-sl-sep" />
-      <span className="fd-sl-dn">
-        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
-          <path d="M5 2v6M2 5l3 3 3-3" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-        {leechers}
-      </span>
-    </div>
-  );
-}
-
-export function TorrentResultCard({ item, index = 0, addState, onAdd }: TorrentResultCardProps) {
-  const hue = hashHue(item.info_hash + item.title);
-  const isHDR = /HDR|DV/i.test(item.resolution ?? "");
-  const is4k = /4K|2160/i.test(item.resolution ?? "");
+export function TorrentResultCard({ item, addState, onAdd }: TorrentResultCardProps) {
   const adding = addState === "loading";
   const added = addState === "done";
   const isError = addState === "error";
 
   const pubDate = new Date(item.published_at);
-  const isValidDate = !Number.isNaN(pubDate.getTime()) && pubDate.getFullYear() > 2000;
-  const dateStr = isValidDate
+  const dateStr = !Number.isNaN(pubDate.getTime()) && pubDate.getFullYear() > 2000
     ? pubDate.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "2-digit" })
     : null;
 
-  // Show relevant badges — skip provider tags since we show it in header
   const extraTags = item.tags?.filter(t =>
-    t !== item.provider &&
-    !/^(RU|EN|JP|UA|DE|FR|ES)$/i.test(t) &&
-    !t.endsWith(" subs")
+    t !== item.provider && !/^(RU|EN|JP|UA|DE|FR|ES)$/i.test(t) && !t.endsWith(" subs")
   ).slice(0, 2) ?? [];
 
+  const meta = [
+    item.resolution && <span key="res" className="fd-result-res">{item.resolution}</span>,
+    item.dub,
+    item.subtitles && `Суб.: ${item.subtitles}`,
+    ...extraTags,
+    providerLabel(item.provider),
+    dateStr,
+  ].filter(Boolean);
+
+  const hasSize = item.size && item.size !== "n/a";
+  const label = added ? "В очереди" : adding ? "Добавляем…" : isError ? "Повторить" : "Добавить";
+
   return (
-    <article
-      className="fd-card"
-      style={{ "--h": hue, animationDelay: staggerDelay(index, 28) } as CSSProperties}
-    >
-      <div className="fd-card-bg" aria-hidden="true" />
-
-      <header className="fd-card-h">
-        <div className="fd-card-title">
-          <h3 title={item.title}>{item.title}</h3>
-          <div className="fd-card-sub">
-            <span className="fd-mono">{providerLabel(item.provider)}</span>
-            {dateStr && <><span className="fd-dot-sep" /><span>{dateStr}</span></>}
-            {isError && <span className="fd-tag fd-tag-warn">Ошибка</span>}
-          </div>
-        </div>
-      </header>
-
-      <div className="fd-card-badges">
-        {item.resolution && (
-          <span className={`fd-badge ${is4k ? "fd-badge-4k" : ""}`}>{item.resolution}</span>
-        )}
-        {isHDR && !is4k && <span className="fd-badge fd-badge-hdr">HDR</span>}
-        {item.dub && <span className="fd-badge fd-badge-rel">{item.dub}</span>}
-        {item.subtitles && (
-          <span className="fd-badge fd-badge-rel" title="Субтитры">Sub: {item.subtitles}</span>
-        )}
-        {extraTags.map(tag => (
-          <span key={tag} className="fd-badge fd-badge-rel">{tag}</span>
-        ))}
-      </div>
-
-      <div className="fd-card-meta">
-        {item.size && item.size !== "n/a" && (
-          <div className="fd-meta-row">
-            <span className="fd-meta-k">Размер</span>
-            <span className="fd-meta-v fd-mono">{item.size}</span>
-          </div>
-        )}
-        <div className="fd-meta-row">
-          <span className="fd-meta-k">Сиды/Пиры</span>
-          <SeedersBar seeders={item.seeders} leechers={item.leechers} />
+    <li className="fd-result">
+      <div className="fd-result-main">
+        <h3 title={item.title}>{item.title}</h3>
+        <div className="fd-item-meta">
+          {meta.map((part, i) => <Fragment key={i}>{i > 0 && " · "}{part}</Fragment>)}
         </div>
       </div>
-
+      <div className="fd-result-stats">
+        <span className="fd-mono">{hasSize ? localizeSize(item.size) : "—"}</span>
+        <span className="fd-result-peers" aria-label={`Сиды ${item.seeders}, пиры ${item.leechers}`}>
+          <span className={item.seeders > 0 ? "fd-ok" : ""}><ArrowUp size={12} aria-hidden="true" />{item.seeders.toLocaleString("ru-RU")}</span>
+          <span><ArrowDown size={12} aria-hidden="true" />{item.leechers.toLocaleString("ru-RU")}</span>
+        </span>
+      </div>
       <button
         type="button"
-        className={`fd-add ${adding ? "is-loading" : ""} ${added ? "is-done" : ""}`}
+        className={`fd-btn-ghost fd-result-add ${added ? "is-done" : ""}`}
         onClick={() => onAdd(item)}
         disabled={added || adding}
         aria-busy={adding}
+        aria-label={`${label}: ${item.title}`}
+        title={label}
       >
-        {added ? (
-          <><Check size={16} />В очереди</>
-        ) : adding ? (
-          <><span className="fd-spinner" />Добавляем…</>
-        ) : (
-          <><Download size={16} />{isError ? "Повторить" : "Добавить"}</>
-        )}
+        {added ? <Check size={16} /> : adding ? <span className="fd-spinner" /> : <Download size={16} />}
+        <span>{label}</span>
       </button>
-    </article>
+    </li>
   );
 }

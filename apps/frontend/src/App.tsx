@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import "./App.css";
 import { MobileNav, Sidebar } from "./components/Navigation";
 import type { NavId } from "./components/Navigation";
 import { ToastStack } from "./components/Toasts";
@@ -445,8 +444,6 @@ export default function App() {
   if (!auth) {
     return (
       <div className={`fd-root-auth ${theme.className}`} style={theme.style}>
-        <div className="fd-ambient" aria-hidden="true" />
-        {theme.grain && <div className="fd-grain" aria-hidden="true" />}
         <AuthPage onAuthenticate={performAuth} />
         <ToastStack toasts={toasts} onDismiss={dismissToast} />
       </div>
@@ -458,9 +455,6 @@ export default function App() {
 
   return (
     <div className={`fd-root ${theme.className}`} style={theme.style}>
-      <div className="fd-ambient" aria-hidden="true" />
-      {theme.grain && <div className="fd-grain" aria-hidden="true" />}
-
       <Sidebar
         activeNav={routeToNav(effectiveRoute)}
         onNavigate={handleNav}
@@ -484,25 +478,21 @@ export default function App() {
         )}
 
         {effectiveRoute.name === "library" && (
-          <div className="fd-screen fd-screen-library">
-            <LibraryPage
+          <LibraryPage
               loading={pageLoading}
               activeDownloads={activeDownloads} completedDownloads={completedDownloads}
               publicLibraryTorrents={publicLibraryTorrents}
               onOpenTorrentWatch={openTorrentWatch}
               onTogglePublic={toggleVisibility} onDeleteTorrent={deleteTorrent}
             />
-          </div>
         )}
 
         {effectiveRoute.name === "settings" && (
-          <div className="fd-screen fd-screen-settings">
-            <SettingsPage
+          <SettingsPage
               auth={auth} jellyfinStatus={jellyfinStatus}
               adminUsers={adminUsers} t={t} setTweak={setTweak}
               onLogout={logout} onCreateUser={createManagedUser}
             />
-          </div>
         )}
 
         {effectiveRoute.name === "watch" && (
